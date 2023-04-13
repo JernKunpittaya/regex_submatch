@@ -178,7 +178,7 @@ function regexToM1(text, submatches) {
         end.type = mem;
         return [count, end];
       case "text":
-        start.edges.push([node.text, end]);
+        start.edges.push([[node.text], end]);
         break;
       case "cat":
         last = start;
@@ -199,24 +199,22 @@ function regexToM1(text, submatches) {
       case "or":
         for (i = 0; i < node.parts.length; i += 1) {
           tempStart = { type: "", edges: [] };
-          tempEnd = { type: "", edges: [["ϵ", end]] };
-          start.edges.push(["ϵ", tempStart]);
-          count = generateGraph(node.parts[i], tempStart, tempEnd, count)[0];
+          start.edges.push([["ϵ", i], tempStart]);
+          count = generateGraph(node.parts[i], tempStart, end, count)[0];
         }
         break;
-
-      // Use
+      //Use only greedy, maybe implement reluctant later
       case "star":
         tempStart = { type: "", edges: [] };
         tempEnd = {
           type: "",
           edges: [
-            ["ϵ", tempStart],
-            ["ϵ", end],
+            [["ϵ", 0], tempStart],
+            [["ϵ", 1], end],
           ],
         };
-        start.edges.push(["ϵ", tempStart]);
-        start.edges.push(["ϵ", end]);
+        start.edges.push([["ϵ", 0], tempStart]);
+        start.edges.push([["ϵ", 1], end]);
         count = generateGraph(node.sub, tempStart, tempEnd, count)[0];
         break;
     }
