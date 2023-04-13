@@ -7,7 +7,7 @@ function readM1(m1, layer, mem) {
   } else {
     mem.push(m1);
   }
-  console.log("layer: ", layer);
+  //   console.log("layer: ", layer);
   console.log(m1);
 
   for (let i = 0; i < m1.edges.length; i++) {
@@ -16,8 +16,11 @@ function readM1(m1, layer, mem) {
   }
 }
 
-let regex = "ab*c";
-let submatches = [[1, 5]];
+let regex = "((a*)|b)";
+let submatches = [
+  [0, 7],
+  [1, 4],
+];
 
 console.log("parsed: ", lexical.parseRegex(regex));
 // console.log("parsed: ", lexical.parseRegex(regex).parts[0].parts);

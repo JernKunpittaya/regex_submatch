@@ -157,9 +157,10 @@ function checkBeginGroup(index, submatches) {
   }
   return false;
 }
+// reverse order
 function checkEndGroup(index, submatches) {
   let result = [];
-  for (let i = 0; i < submatches.length; i++) {
+  for (let i = submatches.length - 1; i >= 0; i--) {
     if (submatches[i][1] == index) {
       result.push(i);
     }
@@ -170,25 +171,35 @@ function checkEndGroup(index, submatches) {
   return false;
 }
 // create M1
-// submatches = [[begin1, end1], [begin2, end2], ...] where (begin1 ...... end1)
+// submatches = [[begin1, end1], [begin2, end2], ...]
 function regexToM1(text, submatches) {
   "use strict";
-  function generateGraph(node, start, end, count, submatches, memS) {
-    var i, last, temp, tempStart, tempEnd, begin, end, realStart;
+  function generateGraph(node, start, end, count, submatches, memS, memE) {
+    var i,
+      last,
+      temp,
+      tempStart,
+      tempEnd,
+      beginTag,
+      endTag,
+      realStart,
+      interEnd;
     if (!start.hasOwnProperty("id")) {
       start.id = count;
       count += 1;
     }
     realStart = start;
-    begin = checkBeginGroup(node.begin, submatches);
-    if (begin) {
+    beginTag = checkBeginGroup(node.begin, submatches);
+    endTag = checkEndGroup(node.end - 1, submatches);
+
+    if (beginTag) {
       temp = start;
       last = start;
-      for (let i = 0; i < begin.length; i++) {
-        if (!memS.includes(begin[i])) {
-          memS.push(begin[i]);
+      for (let i = 0; i < beginTag.length; i++) {
+        if (!memS.includes(beginTag[i])) {
+          memS.push(beginTag[i]);
           last = { type: "", edges: [] };
-          temp.edges.push([["S", begin[i]], last]);
+          temp.edges.push([["S", beginTag[i]], last]);
           last.id = count;
           count += 1;
           temp = last;
@@ -197,15 +208,32 @@ function regexToM1(text, submatches) {
       realStart = last;
       console.log("real ", realStart);
     }
+    // interEnd is stuffs state before end. Use as end in this stuffs. will assign id at the end.
+    interEnd = end;
+    if (endTag) {
+      interEnd = { type: "", edges: [] };
+      temp = interEnd;
+      last = interEnd;
+      for (let i = 0; i < endTag.length - 1; i++) {
+        if (!memE.includes(endTag[i])) {
+          memE.push(endTag[i]);
+          last = { type: "", edges: [] };
+          temp.edges.push([["E", endTag[i]], last]);
+          temp = last;
+        }
+      }
+      last.edges.push([["E", endTag[endTag.length - 1]], end]);
+    }
 
     switch (node.type) {
-      case "empty":
-        let mem = realStart.type + end.type;
-        end = realStart;
-        end.type = mem;
-        return [count, end];
+      // Ignore this case first :)
+      // case "empty":
+      //   let mem = realStart.type + end.type;
+      //   end = realStart;
+      //   end.type = mem;
+      //   return [count, end];
       case "text":
-        realStart.edges.push([[node.text], end]);
+        realStart.edges.push([[node.text], interEnd]);
         break;
       case "cat":
         last = realStart;
@@ -217,7 +245,8 @@ function regexToM1(text, submatches) {
             temp,
             count,
             submatches,
-            memS
+            memS,
+            memE
           );
           count = result[0];
           temp = result[1];
@@ -226,10 +255,11 @@ function regexToM1(text, submatches) {
         count = generateGraph(
           node.parts[node.parts.length - 1],
           last,
-          end,
+          interEnd,
           count,
           submatches,
-          memS
+          memS,
+          memE
         )[0];
         break;
       case "or":
@@ -239,10 +269,11 @@ function regexToM1(text, submatches) {
           count = generateGraph(
             node.parts[i],
             tempStart,
-            end,
+            interEnd,
             count,
             submatches,
-            memS
+            memS,
+            memE
           )[0];
         }
         break;
@@ -253,25 +284,36 @@ function regexToM1(text, submatches) {
           type: "",
           edges: [
             [["ϵ", 0], tempStart],
-            [["ϵ", 1], end],
+            [["ϵ", 1], interEnd],
           ],
         };
         realStart.edges.push([["ϵ", 0], tempStart]);
-        realStart.edges.push([["ϵ", 1], end]);
+        realStart.edges.push([["ϵ", 1], interEnd]);
         count = generateGraph(
           node.sub,
           tempStart,
           tempEnd,
           count,
           submatches,
-          memS
+          memS,
+          memE
         )[0];
         break;
+    }
+    var backMargin = interEnd;
+    console.log("check: ", backMargin);
+    while (backMargin != end) {
+      if (!backMargin.hasOwnProperty("id")) {
+        backMargin.id = count;
+        count += 1;
+      }
+      backMargin = backMargin.edges[0][1];
     }
     if (!end.hasOwnProperty("id")) {
       end.id = count;
       count += 1;
     }
+
     return [count, end];
   }
   var ast = parseRegex(text),
@@ -280,7 +322,7 @@ function regexToM1(text, submatches) {
   if (typeof ast === "string") {
     return ast;
   }
-  generateGraph(ast, start, accept, 0, submatches, []);
+  generateGraph(ast, start, accept, 0, submatches, [], []);
   return start;
 }
 
