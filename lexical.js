@@ -1,3 +1,4 @@
+// same as original
 function parseRegex(text) {
   "use strict";
   function parseSub(text, begin, end, first) {
@@ -143,4 +144,96 @@ function parseRegex(text) {
   }
   return parseSub(new_text, 0, new_text.length, true);
 }
-module.exports = { parseRegex };
+
+function checkBeginGroup(index, submatches) {
+  for (let i = 0; i < submatches.length; i++) {
+    if (submatches[i][0] == index) {
+      return i;
+    }
+  }
+  return false;
+}
+function checkEndGroup(index, submatches) {
+  for (let i = 0; i < submatches.length; i++) {
+    if (submatches[i][1] == index) {
+      return i;
+    }
+  }
+  return false;
+}
+// create M1
+// submatches = [[begin1, end1], [begin2, end2], ...] where (begin1 ...... end1)
+function regexToM1(text, submatches) {
+  "use strict";
+  function generateGraph(node, start, end, count) {
+    var i, last, temp, tempStart, tempEnd;
+    if (!start.hasOwnProperty("id")) {
+      start.id = count;
+      count += 1;
+    }
+    switch (node.type) {
+      case "empty":
+        let mem = start.type + end.type;
+        end = start;
+        end.type = mem;
+        return [count, end];
+      case "text":
+        start.edges.push([node.text, end]);
+        break;
+      case "cat":
+        last = start;
+        for (i = 0; i < node.parts.length - 1; i += 1) {
+          temp = { type: "", edges: [] };
+          let result = generateGraph(node.parts[i], last, temp, count);
+          count = result[0];
+          temp = result[1];
+          last = temp;
+        }
+        count = generateGraph(
+          node.parts[node.parts.length - 1],
+          last,
+          end,
+          count
+        )[0];
+        break;
+      case "or":
+        for (i = 0; i < node.parts.length; i += 1) {
+          tempStart = { type: "", edges: [] };
+          tempEnd = { type: "", edges: [["ϵ", end]] };
+          start.edges.push(["ϵ", tempStart]);
+          count = generateGraph(node.parts[i], tempStart, tempEnd, count)[0];
+        }
+        break;
+
+      // Use
+      case "star":
+        tempStart = { type: "", edges: [] };
+        tempEnd = {
+          type: "",
+          edges: [
+            ["ϵ", tempStart],
+            ["ϵ", end],
+          ],
+        };
+        start.edges.push(["ϵ", tempStart]);
+        start.edges.push(["ϵ", end]);
+        count = generateGraph(node.sub, tempStart, tempEnd, count)[0];
+        break;
+    }
+    if (!end.hasOwnProperty("id")) {
+      end.id = count;
+      count += 1;
+    }
+    return [count, end];
+  }
+  var ast = parseRegex(text),
+    start = { type: "start", edges: [] },
+    accept = { type: "accept", edges: [] };
+  if (typeof ast === "string") {
+    return ast;
+  }
+  generateGraph(ast, start, accept, 0);
+  return start;
+}
+
+module.exports = { parseRegex, checkBeginGroup, checkEndGroup, regexToM1 };
