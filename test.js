@@ -11,13 +11,16 @@ function readM1(m1, layer, mem) {
   console.log(m1);
 
   for (let i = 0; i < m1.edges.length; i++) {
-    console.log("edge of id ", m1.id, " : ", m1.edges[i][0]);
+    console.log("edge of ", m1.id, " : ", m1.edges[i][0]);
     readM1(m1.edges[i][1], layer + 1, mem);
   }
 }
 
-let regex = "ab*";
+let regex = "ab*c";
+let submatches = [[1, 5]];
+
 console.log("parsed: ", lexical.parseRegex(regex));
-console.log("machine: ", lexical.regexToM1(regex));
+// console.log("parsed: ", lexical.parseRegex(regex).parts[0].parts);
 console.log("detail");
-console.log(readM1(lexical.regexToM1(regex), 0, []));
+console.log(readM1(lexical.regexToM1(regex, submatches), 0, []));
+//

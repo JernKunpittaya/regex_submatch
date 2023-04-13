@@ -144,20 +144,28 @@ function parseRegex(text) {
   }
   return parseSub(new_text, 0, new_text.length, true);
 }
-
+// Assume submatch already ordered by order of (
 function checkBeginGroup(index, submatches) {
+  let result = [];
   for (let i = 0; i < submatches.length; i++) {
     if (submatches[i][0] == index) {
-      return i;
+      result.push(i);
     }
+  }
+  if (result.length != 0) {
+    return result;
   }
   return false;
 }
 function checkEndGroup(index, submatches) {
+  let result = [];
   for (let i = 0; i < submatches.length; i++) {
     if (submatches[i][1] == index) {
-      return i;
+      result.push(i);
     }
+  }
+  if (result.length != 0) {
+    return result;
   }
   return false;
 }
@@ -165,26 +173,52 @@ function checkEndGroup(index, submatches) {
 // submatches = [[begin1, end1], [begin2, end2], ...] where (begin1 ...... end1)
 function regexToM1(text, submatches) {
   "use strict";
-  function generateGraph(node, start, end, count) {
-    var i, last, temp, tempStart, tempEnd;
+  function generateGraph(node, start, end, count, submatches, memS) {
+    var i, last, temp, tempStart, tempEnd, begin, end, realStart;
     if (!start.hasOwnProperty("id")) {
       start.id = count;
       count += 1;
     }
+    realStart = start;
+    begin = checkBeginGroup(node.begin, submatches);
+    if (begin) {
+      temp = start;
+      last = start;
+      for (let i = 0; i < begin.length; i++) {
+        if (!memS.includes(begin[i])) {
+          memS.push(begin[i]);
+          last = { type: "", edges: [] };
+          temp.edges.push([["S", begin[i]], last]);
+          last.id = count;
+          count += 1;
+          temp = last;
+        }
+      }
+      realStart = last;
+      console.log("real ", realStart);
+    }
+
     switch (node.type) {
       case "empty":
-        let mem = start.type + end.type;
-        end = start;
+        let mem = realStart.type + end.type;
+        end = realStart;
         end.type = mem;
         return [count, end];
       case "text":
-        start.edges.push([[node.text], end]);
+        realStart.edges.push([[node.text], end]);
         break;
       case "cat":
-        last = start;
+        last = realStart;
         for (i = 0; i < node.parts.length - 1; i += 1) {
           temp = { type: "", edges: [] };
-          let result = generateGraph(node.parts[i], last, temp, count);
+          let result = generateGraph(
+            node.parts[i],
+            last,
+            temp,
+            count,
+            submatches,
+            memS
+          );
           count = result[0];
           temp = result[1];
           last = temp;
@@ -193,14 +227,23 @@ function regexToM1(text, submatches) {
           node.parts[node.parts.length - 1],
           last,
           end,
-          count
+          count,
+          submatches,
+          memS
         )[0];
         break;
       case "or":
         for (i = 0; i < node.parts.length; i += 1) {
           tempStart = { type: "", edges: [] };
-          start.edges.push([["ϵ", i], tempStart]);
-          count = generateGraph(node.parts[i], tempStart, end, count)[0];
+          realStart.edges.push([["ϵ", i], tempStart]);
+          count = generateGraph(
+            node.parts[i],
+            tempStart,
+            end,
+            count,
+            submatches,
+            memS
+          )[0];
         }
         break;
       //Use only greedy, maybe implement reluctant later
@@ -213,9 +256,16 @@ function regexToM1(text, submatches) {
             [["ϵ", 1], end],
           ],
         };
-        start.edges.push([["ϵ", 0], tempStart]);
-        start.edges.push([["ϵ", 1], end]);
-        count = generateGraph(node.sub, tempStart, tempEnd, count)[0];
+        realStart.edges.push([["ϵ", 0], tempStart]);
+        realStart.edges.push([["ϵ", 1], end]);
+        count = generateGraph(
+          node.sub,
+          tempStart,
+          tempEnd,
+          count,
+          submatches,
+          memS
+        )[0];
         break;
     }
     if (!end.hasOwnProperty("id")) {
@@ -230,7 +280,7 @@ function regexToM1(text, submatches) {
   if (typeof ast === "string") {
     return ast;
   }
-  generateGraph(ast, start, accept, 0);
+  generateGraph(ast, start, accept, 0, submatches, []);
   return start;
 }
 
