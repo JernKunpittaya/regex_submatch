@@ -190,7 +190,9 @@ function regexToM1(text, submatches) {
     }
     realStart = start;
     beginTag = checkBeginGroup(node.begin, submatches);
+    // console.log("beginTag: ", beginTag);
     endTag = checkEndGroup(node.end - 1, submatches);
+    // console.log("EndTag: ", endTag);
 
     if (beginTag) {
       temp = start;
@@ -211,18 +213,28 @@ function regexToM1(text, submatches) {
     // interEnd is stuffs state before end. Use as end in this stuffs. will assign id at the end.
     interEnd = end;
     if (endTag) {
-      interEnd = { type: "", edges: [] };
-      temp = interEnd;
-      last = interEnd;
-      for (let i = 0; i < endTag.length - 1; i++) {
+      var newTag = [];
+
+      for (let i = 0; i < endTag.length; i++) {
         if (!memE.includes(endTag[i])) {
-          memE.push(endTag[i]);
-          last = { type: "", edges: [] };
-          temp.edges.push([["E", endTag[i]], last]);
-          temp = last;
+          newTag.push(endTag[i]);
         }
       }
-      last.edges.push([["E", endTag[endTag.length - 1]], end]);
+      if (newTag.length >= 1) {
+        interEnd = { type: "", edges: [] };
+        temp = interEnd;
+        last = interEnd;
+        for (let i = 0; i < newTag.length - 1; i++) {
+          memE.push(newTag[i]);
+          last = { type: "", edges: [] };
+          temp.edges.push([["E", newTag[i]], last]);
+          temp = last;
+        }
+        memE.push(newTag[newTag.length - 1]);
+        last.edges.push([["E", newTag[newTag.length - 1]], end]);
+      } else {
+        interEnd = end;
+      }
     }
 
     switch (node.type) {
@@ -325,5 +337,15 @@ function regexToM1(text, submatches) {
   generateGraph(ast, start, accept, 0, submatches, [], []);
   return start;
 }
+function M1ToM2(text, submatches) {
+  "use strict";
+  return 1;
+}
 
-module.exports = { parseRegex, checkBeginGroup, checkEndGroup, regexToM1 };
+module.exports = {
+  parseRegex,
+  checkBeginGroup,
+  checkEndGroup,
+  regexToM1,
+  M1ToM2,
+};

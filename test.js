@@ -15,11 +15,14 @@ function readM1(m1, mem) {
   }
 }
 
-let regex = "((a*)|b)";
+let regex = "((a*)|b)(ab|b)";
 let submatches = [
   [0, 7],
   [1, 4],
+  [8, 13],
 ];
+// let regex = "(ab|b)";
+// let submatches = [[0, 5]];
 
 console.log("parsed: ", lexical.parseRegex(regex));
 console.log("detail");
