@@ -208,7 +208,7 @@ function regexToM1(text, submatches) {
         }
       }
       realStart = last;
-      console.log("real ", realStart);
+      // console.log("real ", realStart);
     }
     // interEnd is stuffs state before end. Use as end in this stuffs. will assign id at the end.
     interEnd = end;
@@ -313,7 +313,7 @@ function regexToM1(text, submatches) {
         break;
     }
     var backMargin = interEnd;
-    console.log("check: ", backMargin);
+    // console.log("check: ", backMargin);
     while (backMargin != end) {
       if (!backMargin.hasOwnProperty("id")) {
         backMargin.id = count;
@@ -337,9 +337,99 @@ function regexToM1(text, submatches) {
   generateGraph(ast, start, accept, 0, submatches, [], []);
   return start;
 }
-function M1ToM2(text, submatches) {
+
+function findQ2(m1, q2, mem = new Set()) {
+  if (mem.has(m1)) {
+    console.log("exist already, id: ", m1.id);
+    return;
+  } else {
+    mem.add(m1);
+  }
+  var edges = m1.edges;
+  if (m1.type == "accept") {
+    q2.push(m1);
+    return;
+  }
+  for (let i = 0; i < edges.length; i++) {
+    if (edges[i][0].length == 1) {
+      q2.push(m1);
+    }
+  }
+
+  for (let i = 0; i < m1.edges.length; i++) {
+    // console.log("edge of ", m1.id, " : ", m1.edges[i][0]);
+    findQ2(m1.edges[i][1], q2, mem);
+  }
+}
+function piOnM1(m1, start, end, visited = new Set()) {
+  if (start == end) {
+    return true;
+  }
+  visited.add(start);
+  var edges = start.edges;
+  for (let i = 0; i < edges.length; i++) {
+    // skip alphabet edge
+    if (edges[i][0].length == 1) {
+      continue;
+    }
+    if (visited.has(edges[i][1])) {
+      continue;
+    }
+    if (piOnM1(m1, edges[i][1], end, visited)) {
+      return true;
+    }
+  }
+  return false;
+}
+function deltaQ2(m1, q2) {
+  result = [];
+  for (let i = 0; i < q2.length; i++) {
+    for (let j = 0; j < q2.length; j++) {
+      var start = q2[i];
+      var end = q2[j];
+      for (let k = 0; k < start.edges.length; k++) {
+        if (start.edges[k][0].length == 1) {
+          if (piOnM1(m1, start.edges[k][1], end)) {
+            result.push([start, start.edges[k][0][0], end]);
+          }
+        }
+      }
+    }
+  }
+  return result;
+}
+function M1ToM2(m1) {
   "use strict";
-  return 1;
+  var q2 = [];
+  findQ2(m1, q2);
+  for (let i = 0; i < q2.length; i++) {
+    if (piOnM1(m1, m1, q2[i])) {
+      q2[i].type = "start";
+    }
+  }
+  var transition = deltaQ2(m1, q2);
+  var q2_m2 = {};
+  for (let i = 0; i < transition.length; i++) {
+    if (!q2_m2.hasOwnProperty(transition[i][0].id)) {
+      q2_m2[transition[i][0].id] = {
+        type: transition[i][0].type,
+        edges: [],
+        id: transition[i][0].id,
+      };
+    }
+    if (!q2_m2.hasOwnProperty(transition[i][2].id)) {
+      q2_m2[transition[i][2].id] = {
+        type: transition[i][2].type,
+        edges: [],
+        id: transition[i][2].id,
+      };
+    }
+    q2_m2[transition[i][0].id].edges.push([
+      transition[i][1],
+      q2_m2[transition[i][2].id],
+    ]);
+  }
+  return q2_m2;
 }
 
 module.exports = {
@@ -348,4 +438,7 @@ module.exports = {
   checkEndGroup,
   regexToM1,
   M1ToM2,
+  findQ2,
+  piOnM1,
+  deltaQ2,
 };
