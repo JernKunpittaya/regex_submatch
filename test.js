@@ -28,20 +28,19 @@ console.log("parsed: ", lexical.parseRegex(regex));
 console.log("detail");
 var M1 = lexical.regexToM1(regex, submatches);
 console.log(readM1(M1));
-
-// var q2 = [];
-// lexical.findQ2(M1, q2);
-// console.log("q2 ", q2);
-// var startQ2 = [];
-// for (let i = 0; i < q2.length; i++) {
-//   startQ2.push(lexical.piOnM1(M1, M1, q2[i]));
+var M2_dict = lexical.M1ToM2(M1);
+console.log("M2: ", M2_dict);
+// for (let key in M2_dict["q2"]) {
+//   console.log(readM1(M2_dict["q2"][key]));
 // }
-// console.log("start: ", startQ2);
-// var tran = lexical.deltaQ2(M1, q2);
-// console.log("transition ", tran);
-var M2 = lexical.M1ToM2(M1);
-console.log("M2: ", M2);
-for (let key in M2) {
-  console.log(readM1(M2[key]));
+var M3_dict = lexical.M2ToM3(M2_dict["q2"], M2_dict["trans"]);
+// console.log("M3: ", M3_dict);
+console.log("q3 states");
+for (let key in M3_dict["q3"]) {
+  console.log(M3_dict["q3"][key]);
+}
+console.log("q3 tran");
+for (let i = 0; i < M3_dict["trans"].length; i++) {
+  console.log(M3_dict["trans"][i]);
 }
 //

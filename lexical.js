@@ -429,7 +429,59 @@ function M1ToM2(m1) {
       q2_m2[transition[i][2].id],
     ]);
   }
-  return q2_m2;
+  return { q2: q2_m2, trans: transition };
+}
+function setsAreEqual(set1, set2) {
+  return (
+    set1.size === set2.size && [...set1].every((element) => set2.has(element))
+  );
+}
+
+function M2ToM3(q2_m2, transition) {
+  var q3 = [];
+  var q3_m3 = [];
+  var transition_3 = [];
+  var visited = new Set();
+  // set q3 to [{f}]
+  for (let key in q2_m2) {
+    if (q2_m2[key].type == "accept") {
+      var temp = new Set();
+      temp.add(q2_m2[key]);
+      q3.push(temp);
+    }
+  }
+  console.log("q3 in: ", q3);
+  // inside loop
+  while (q3.length > 0) {
+    var state_set = q3.pop();
+    var states_id = "";
+    for (const state of state_set) {
+      states_id += state.id + " ";
+    }
+    if (visited.has(states_id)) {
+      continue;
+    }
+    q3_m3.push(state_set);
+    visited.add(states_id);
+    var alp_dict = {};
+    for (const state of state_set) {
+      for (let i = 0; i < transition.length; i++) {
+        if (transition[i][2].id == state.id) {
+          if (!(transition[i][1] in alp_dict)) {
+            alp_dict[transition[i][1]] = new Set();
+          }
+          alp_dict[transition[i][1]].add(transition[i][0]);
+        }
+      }
+    }
+    for (let alp in alp_dict) {
+      if (alp_dict[alp].size > 0) {
+        q3.push(alp_dict[alp]);
+        transition_3.push([state_set, alp, alp_dict[alp]]);
+      }
+    }
+  }
+  return { q3: q3_m3, trans: transition_3 };
 }
 
 module.exports = {
@@ -441,4 +493,5 @@ module.exports = {
   findQ2,
   piOnM1,
   deltaQ2,
+  M2ToM3,
 };
