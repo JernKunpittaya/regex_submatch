@@ -439,29 +439,45 @@ function setsAreEqual(set1, set2) {
 
 function M2ToM3(q2_m2, transition) {
   var q3 = [];
-  var q3_m3 = [];
-  var transition_3 = [];
+  var q3_m3 = new Set();
+  var transition_3 = {};
   var visited = new Set();
+  var start_q2 = new Set();
+  var accepted = new Set();
+  var start;
   // set q3 to [{f}]
   for (let key in q2_m2) {
     if (q2_m2[key].type == "accept") {
       var temp = new Set();
       temp.add(q2_m2[key]);
+      start = q2_m2[key].id.toString();
       q3.push(temp);
     }
+    if (q2_m2[key].type == "start") {
+      start_q2.add(key);
+    }
   }
-  console.log("q3 in: ", q3);
+
   // inside loop
   while (q3.length > 0) {
     var state_set = q3.pop();
-    var states_id = "";
+    var states_id = [];
     for (const state of state_set) {
-      states_id += state.id + " ";
+      states_id.push(state.id);
     }
+    states_id.sort((a, b) => a - b);
+    states_id = states_id.toString();
     if (visited.has(states_id)) {
       continue;
     }
-    q3_m3.push(state_set);
+    var checkStart = states_id.split(",");
+    for (const state of checkStart) {
+      if (start_q2.has(state)) {
+        accepted.add(states_id);
+        break;
+      }
+    }
+    q3_m3.add(states_id);
     visited.add(states_id);
     var alp_dict = {};
     for (const state of state_set) {
@@ -477,12 +493,27 @@ function M2ToM3(q2_m2, transition) {
     for (let alp in alp_dict) {
       if (alp_dict[alp].size > 0) {
         q3.push(alp_dict[alp]);
-        transition_3.push([state_set, alp, alp_dict[alp]]);
+        var alp_string = [];
+        for (const state of alp_dict[alp]) {
+          alp_string.push(state.id);
+        }
+        alp_string.sort((a, b) => a - b);
+        alp_string = alp_string.toString();
+        if (!(states_id in transition_3)) {
+          transition_3[states_id] = {};
+        }
+        transition_3[states_id][alp] = alp_string;
       }
     }
   }
-  return { q3: q3_m3, trans: transition_3 };
+  return {
+    q3: q3_m3,
+    start_state: start,
+    accept_states: accepted,
+    trans: transition_3,
+  };
 }
+function createM4(m1, m2, m3) {}
 
 module.exports = {
   parseRegex,

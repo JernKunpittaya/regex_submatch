@@ -28,19 +28,13 @@ console.log("parsed: ", lexical.parseRegex(regex));
 console.log("detail");
 var M1 = lexical.regexToM1(regex, submatches);
 console.log(readM1(M1));
+
 var M2_dict = lexical.M1ToM2(M1);
 console.log("M2: ", M2_dict);
 // for (let key in M2_dict["q2"]) {
 //   console.log(readM1(M2_dict["q2"][key]));
 // }
 var M3_dict = lexical.M2ToM3(M2_dict["q2"], M2_dict["trans"]);
-// console.log("M3: ", M3_dict);
-console.log("q3 states");
-for (let key in M3_dict["q3"]) {
-  console.log(M3_dict["q3"][key]);
-}
-console.log("q3 tran");
-for (let i = 0; i < M3_dict["trans"].length; i++) {
-  console.log(M3_dict["trans"][i]);
-}
+console.log("M3 ", M3_dict);
+
 //
