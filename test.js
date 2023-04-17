@@ -27,14 +27,17 @@ let submatches = [
 console.log("parsed: ", lexical.parseRegex(regex));
 console.log("detail");
 var M1 = lexical.regexToM1(regex, submatches);
-console.log(readM1(M1));
-
+var M1_easy = lexical.SimulateM1(M1);
+// console.log("M1_easy", M1_easy);
+console.log(lexical.findAllPaths(M1_easy, "6", "14"));
 var M2_dict = lexical.M1ToM2(M1);
-console.log("M2: ", M2_dict);
-// for (let key in M2_dict["q2"]) {
-//   console.log(readM1(M2_dict["q2"][key]));
-// }
+// console.log("M2: ", M2_dict);
+// // for (let key in M2_dict["q2"]) {
+// //   console.log(readM1(M2_dict["q2"][key]));
+// // }
 var M3_dict = lexical.M2ToM3(M2_dict["q2"], M2_dict["trans"]);
 console.log("M3 ", M3_dict);
 
+var M4_dict = lexical.createM4(M1, M3_dict);
+console.log("M4", M4_dict);
 //
