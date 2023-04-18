@@ -744,7 +744,6 @@ function regexSubmatch(text, m3, m4) {
       throw new Error("Text not accepted by regex");
     }
   }
-  console.log("MMEMM ", q3_rev_mem);
 
   // change later in circom
   var submatch = {};
@@ -759,7 +758,17 @@ function regexSubmatch(text, m3, m4) {
     }
     node = m4["tran"][node][q3_rev_mem[text.length - i]][0];
   }
-  console.log("subbbb ", submatch);
+  // console.log("subbbb ", submatch);
+  tag_result = {};
+  for (const key in submatch) {
+    if (!(key.split(",")[1] in tag_result)) {
+      tag_result[key.split(",")[1]] = [submatch[key]];
+    } else {
+      tag_result[key.split(",")[1]].push(submatch[key]);
+    }
+  }
+  // console.log("tag result ", tag_result);
+  return tag_result;
 }
 
 // function

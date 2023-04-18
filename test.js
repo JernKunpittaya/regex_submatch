@@ -44,5 +44,6 @@ console.log("M3 ", M3_dict);
 var M4_dict = lexical.createM4(M1, M3_dict);
 console.log("M4", M4_dict);
 var text = "aaaadai";
-lexical.regexSubmatch(text, M3_dict, M4_dict);
+var tag_result = lexical.regexSubmatch(text, M3_dict, M4_dict);
+console.log("tag result ", tag_result);
 //
