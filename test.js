@@ -15,21 +15,24 @@ function readM1(m1, mem = new Set()) {
   }
 }
 
-let regex = "((a*)|b)(ab|b)";
+// let regex = "((a*)|b)(ab|b)";
+let regex = "((a*)|cb)(dai|usd)";
+// let submatches = [
+//   [0, 7],
+//   [1, 4],
+//   [8, 13],
+// ];
 let submatches = [
-  [0, 7],
+  [0, 8],
   [1, 4],
-  [8, 13],
+  [9, 17],
 ];
-// let regex = "(ab|b)";
-// let submatches = [[0, 5]];
-
 console.log("parsed: ", lexical.parseRegex(regex));
+// console.log("parsed: ", lexical.parseRegex(regex)["parts][0]["parts"]);
 console.log("detail");
 var M1 = lexical.regexToM1(regex, submatches);
 var M1_easy = lexical.SimulateM1(M1);
-// console.log("M1_easy", M1_easy);
-console.log(lexical.findAllPaths(M1_easy, "6", "14"));
+console.log("M1_easy", M1_easy);
 var M2_dict = lexical.M1ToM2(M1);
 // console.log("M2: ", M2_dict);
 // // for (let key in M2_dict["q2"]) {
@@ -40,4 +43,6 @@ console.log("M3 ", M3_dict);
 
 var M4_dict = lexical.createM4(M1, M3_dict);
 console.log("M4", M4_dict);
+var text = "aaaadai";
+lexical.regexSubmatch(text, M3_dict, M4_dict);
 //

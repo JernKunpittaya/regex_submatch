@@ -724,6 +724,7 @@ function createM4(m1, m3) {
   for (const ele of simplified_m1["accepted"]) {
     q4_withAcc.push(ele.toString());
   }
+  // console.log("trannnn ", all_trans);
   return {
     q4: q4_withAcc,
     start: "start",
@@ -731,7 +732,37 @@ function createM4(m1, m3) {
     tran: all_trans,
   };
 }
+function regexSubmatch(text, m3, m4) {
+  var q3_rev_mem = [m3["start_state"]];
+  var node = m3["start_state"];
+  // run through m3
+  for (let i = text.length - 1; i >= 0; i--) {
+    if (node in m3["trans"] && text[i] in m3["trans"][node]) {
+      node = m3["trans"][node][text[i]];
+      q3_rev_mem.push(node);
+    } else {
+      throw new Error("Text not accepted by regex");
+    }
+  }
+  console.log("MMEMM ", q3_rev_mem);
 
+  // change later in circom
+  var submatch = {};
+  // run through m4
+  node = "start";
+  for (let i = 0; i <= text.length; i++) {
+    if (m4["tran"][node][q3_rev_mem[text.length - i]][1].length > 0) {
+      // console.log("i ", i);
+      for (const tag of m4["tran"][node][q3_rev_mem[text.length - i]][1]) {
+        submatch[tag] = i;
+      }
+    }
+    node = m4["tran"][node][q3_rev_mem[text.length - i]][0];
+  }
+  console.log("subbbb ", submatch);
+}
+
+// function
 module.exports = {
   parseRegex,
   checkBeginGroup,
@@ -745,4 +776,5 @@ module.exports = {
   createM4,
   SimulateM1,
   findAllPaths,
+  regexSubmatch,
 };
