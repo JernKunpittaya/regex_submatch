@@ -47,4 +47,8 @@ var text = "aaaab";
 var tag_result = lexical.regexSubmatch(text, M3_dict, M4_dict);
 console.log("tag result ", tag_result);
 console.log("all matched states; ", lexical.findMatchStateM4(M4_dict));
+console.log(
+  "Another tag: ",
+  lexical.regexSubmatchFromState(text, M3_dict, M4_dict)
+);
 //

@@ -862,6 +862,45 @@ function regexSubmatch(text, m3, m4) {
   return tag_result;
 }
 
+function regexSubmatchFromState(text, m3, m4) {
+  var q3_rev_mem = [m3["start_state"]];
+  var node = m3["start_state"];
+  // run through m3
+  for (let i = text.length - 1; i >= 0; i--) {
+    if (node in m3["trans"] && text[i] in m3["trans"][node]) {
+      node = m3["trans"][node][text[i]];
+      q3_rev_mem.push(node);
+    } else {
+      throw new Error("Text not accepted by regex");
+    }
+  }
+
+  var allTags = findMatchStateM4(m4);
+  var submatch = {};
+  // run through m4
+  node = "start";
+  for (let i = 0; i <= text.length; i++) {
+    for (const tag in allTags) {
+      if (
+        allTags[tag].has(
+          JSON.stringify([
+            node,
+            m4["tran"][node][q3_rev_mem[text.length - i]][0],
+          ])
+        )
+      ) {
+        if (!(tag in submatch)) {
+          submatch[tag] = new Set();
+        }
+        submatch[tag].add(i);
+      }
+    }
+    node = m4["tran"][node][q3_rev_mem[text.length - i]][0];
+  }
+
+  return submatch;
+}
+
 // function
 module.exports = {
   parseRegex,
@@ -878,4 +917,5 @@ module.exports = {
   findAllPaths,
   regexSubmatch,
   findMatchStateM4,
+  regexSubmatchFromState,
 };
