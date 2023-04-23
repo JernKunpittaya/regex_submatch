@@ -15,18 +15,18 @@ function readM1(m1, mem = new Set()) {
   }
 }
 
-// let regex = "((a*)|b)(ab|b)";
-let regex = "((a*)|cb)(dai|usd)";
-// let submatches = [
-//   [0, 7],
-//   [1, 4],
-//   [8, 13],
-// ];
+let regex = "((a*)|b)(ab|b)";
+// let regex = "((a*)|cb)*kb";
 let submatches = [
-  [0, 8],
+  [0, 7],
   [1, 4],
-  [9, 17],
+  [8, 13],
 ];
+// let submatches = [
+//   [1, 4],
+//   // [1, 4],
+//   // [9, 17],
+// ];
 console.log("parsed: ", lexical.parseRegex(regex));
 // console.log("parsed: ", lexical.parseRegex(regex)["parts][0]["parts"]);
 console.log("detail");
@@ -43,7 +43,8 @@ console.log("M3 ", M3_dict);
 
 var M4_dict = lexical.createM4(M1, M3_dict);
 console.log("M4", M4_dict);
-var text = "aaaadai";
+var text = "aaaab";
 var tag_result = lexical.regexSubmatch(text, M3_dict, M4_dict);
 console.log("tag result ", tag_result);
+console.log("all matched states; ", lexical.findMatchStateM4(M4_dict));
 //

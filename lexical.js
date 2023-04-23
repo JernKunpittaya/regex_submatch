@@ -724,13 +724,104 @@ function createM4(m1, m3) {
   for (const ele of simplified_m1["accepted"]) {
     q4_withAcc.push(ele.toString());
   }
-  // console.log("trannnn ", all_trans);
+  console.log("trannnn ", all_trans);
   return {
     q4: q4_withAcc,
     start: "start",
     accepted: simplified_m1["accepted"].toString(),
     tran: all_trans,
   };
+}
+// show what state transition is included for revealing a subgroup match.
+// memTags {tag1: set("[from1, to1]","[from2, to2]"", ...), tag2: [...]}
+// memTag {tag1: }
+// boolTag{tag1: true, tag2: False}
+function findMatchStateM4(m4) {
+  var tranGraph = m4["tran"];
+  var allTags = {};
+  // dfa not have cycle, except self referential
+  function findMatchState(node_id, memTags, boolTags) {
+    if (node_id == m4["accepted"]) {
+      for (const key in memTags) {
+        if (!(key in allTags)) {
+          allTags[key] = new Set();
+        }
+        for (const strTran of memTags[key]) {
+          allTags[key].add(strTran);
+        }
+      }
+      return;
+    }
+    // duplicate memTags and boolTags
+    var cl_memTags = {};
+    for (const key in memTags) {
+      cl_memTags[key] = new Set(memTags[key]);
+    }
+    // console.log("check ", node_id, cl_memTags);
+    var cl_boolTags = Object.assign({}, boolTags);
+    // take care of self-referential
+    for (const key in tranGraph[node_id]) {
+      if (tranGraph[node_id][key][0] == node_id) {
+        var tags = tranGraph[node_id][key][1];
+        if (tags.length > 0) {
+          for (const tag of tags) {
+            // console.log("tagg ", tag);
+            var split_tag = tag.split(",");
+            if (split_tag[0] == "E") {
+              cl_boolTags[split_tag[1]] = false;
+            } else {
+              cl_boolTags[split_tag[1]] = true;
+            }
+          }
+        }
+        for (const boolTag in cl_boolTags) {
+          if (cl_boolTags[boolTag]) {
+            if (!(boolTag in cl_memTags)) {
+              cl_memTags[boolTag] = new Set();
+            }
+            cl_memTags[boolTag].add(JSON.stringify([node_id, node_id]));
+          }
+        }
+        break;
+      }
+    }
+
+    for (const key in tranGraph[node_id]) {
+      if (tranGraph[node_id][key][0] == node_id) {
+        continue;
+      }
+      var cl2_memTags = {};
+      for (const key in cl_memTags) {
+        cl2_memTags[key] = new Set(cl_memTags[key]);
+      }
+      // console.log("check ", node_id, cl_memTags);
+      var cl2_boolTags = Object.assign({}, cl_boolTags);
+      var tags = tranGraph[node_id][key][1];
+      if (tags.length > 0) {
+        for (const tag of tags) {
+          var split_tag = tag.split(",");
+          if (split_tag[0] == "E") {
+            cl2_boolTags[split_tag[1]] = false;
+          } else {
+            cl2_boolTags[split_tag[1]] = true;
+          }
+        }
+      }
+      for (const boolTag in cl2_boolTags) {
+        if (cl2_boolTags[boolTag]) {
+          if (!(boolTag in cl2_memTags)) {
+            cl2_memTags[boolTag] = new Set();
+          }
+          cl2_memTags[boolTag].add(
+            JSON.stringify([node_id, tranGraph[node_id][key][0]])
+          );
+        }
+      }
+      findMatchState(tranGraph[node_id][key][0], cl2_memTags, cl2_boolTags);
+    }
+  }
+  findMatchState(m4["start"], {}, {});
+  return allTags;
 }
 function regexSubmatch(text, m3, m4) {
   var q3_rev_mem = [m3["start_state"]];
@@ -786,4 +877,5 @@ module.exports = {
   SimulateM1,
   findAllPaths,
   regexSubmatch,
+  findMatchStateM4,
 };
