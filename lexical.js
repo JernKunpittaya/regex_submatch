@@ -1,3 +1,30 @@
+const og_lexical = require("./og_lexical");
+const path = require("path");
+const regexpTree = require("regexp-tree");
+const assert = require("assert");
+const lexical = require("./lexical");
+
+const a2z = "a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z";
+const A2Z = "A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z";
+const r0to9 = "0|1|2|3|4|5|6|7|8|9";
+const alphanum = `${a2z}|${A2Z}|${r0to9}`;
+
+const key_chars = `(${a2z})`;
+// hypothesis: is key_chars in email only limit to these chars below?
+const succ_key_chars = "(v|a|c|d|s|t|h)";
+const catch_all =
+  "(0|1|2|3|4|5|6|7|8|9|a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|!|\"|#|$|%|&|'|\\(|\\)|\\*|\\+|,|-|.|\\/|:|;|<|=|>|\\?|@|\\[|\\\\|]|^|_|`|{|\\||}|~| |\t|\n|\r|\x0b|\x0c)";
+// Not the same: \\[ and ]
+const catch_all_without_semicolon =
+  "(0|1|2|3|4|5|6|7|8|9|a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|!|\"|#|$|%|&|'|\\(|\\)|\\*|\\+|,|-|.|\\/|:|<|=|>|\\?|@|\\[|\\\\|]|^|_|`|{|\\||}|~| |\t|\n|\r|\x0b|\x0c)";
+
+const email_chars = `${alphanum}|_|.|-`;
+const base_64 = `(${alphanum}|\\+|\\/|=)`;
+const word_char = `(${alphanum}|_)`;
+const a2z_nosep = "abcdefghijklmnopqrstuvwxyz";
+const A2Z_nosep = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const r0to9_nosep = "0123456789";
+const email_address_regex = `([a-zA-Z0-9._%\\+-]+@[a-zA-Z0-9.-]+.[a-zA-Z0-9]+)`;
 // same as original
 function parseRegex(text) {
   "use strict";
@@ -724,7 +751,7 @@ function createM4(m1, m3) {
   for (const ele of simplified_m1["accepted"]) {
     q4_withAcc.push(ele.toString());
   }
-  console.log("trannnn ", all_trans);
+  // console.log("trannnn ", all_trans);
   return {
     q4: q4_withAcc,
     start: "start",
@@ -900,6 +927,223 @@ function regexSubmatchFromState(text, m3, m4) {
 
   return submatch;
 }
+// Define a function to check whether a string is accepted by the finite automata
+function accepts(simp_graph, str) {
+  let state = simp_graph["start_state"];
+  for (let i = 0; i < str.length; i++) {
+    const symbol = str[i];
+    if (simp_graph["transitions"][state][symbol]) {
+      state = simp_graph["transitions"][state][symbol];
+    } else {
+      return false;
+    }
+  }
+  return simp_graph["accepted_states"].has(state);
+}
+function findSubstrings(simp_graph, text) {
+  const substrings = [];
+  const indexes = [];
+  for (let i = 0; i < text.length; i++) {
+    for (let j = i; j < text.length; j++) {
+      const substring = text.slice(i, j + 1);
+      if (accepts(simp_graph, substring)) {
+        substrings.push(substring);
+        indexes.push([i, j]);
+      }
+    }
+  }
+  // indexes is inclusive at the end
+  // return [substrings, indexes];
+  return [substrings, indexes];
+}
+
+function toNature(col) {
+  var i,
+    j,
+    base = "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    result = 0;
+  if ("1" <= col[0] && col[0] <= "9") {
+    result = parseInt(col, 10);
+  } else {
+    for (i = 0, j = col.length - 1; i < col.length; i += 1, j -= 1) {
+      result += Math.pow(base.length, j) * (base.indexOf(col[i]) + 1);
+    }
+  }
+  return result;
+}
+function compile(regex) {
+  let nfa = og_lexical.regexToNfa(regex);
+  let dfa = og_lexical.minDfa(og_lexical.nfaToDfa(nfa));
+
+  var i,
+    j,
+    states = {},
+    nodes = [],
+    stack = [dfa],
+    symbols = [],
+    top;
+
+  while (stack.length > 0) {
+    top = stack.pop();
+    if (!states.hasOwnProperty(top.id)) {
+      states[top.id] = top;
+      top.nature = toNature(top.id);
+      nodes.push(top);
+      for (i = 0; i < top.edges.length; i += 1) {
+        if (top.edges[i][0] !== "ϵ" && symbols.indexOf(top.edges[i][0]) < 0) {
+          symbols.push(top.edges[i][0]);
+        }
+        stack.push(top.edges[i][1]);
+      }
+    }
+  }
+  nodes.sort(function (a, b) {
+    return a.nature - b.nature;
+  });
+  symbols.sort();
+
+  let graph = [];
+  for (let i = 0; i < nodes.length; i += 1) {
+    let curr = {};
+    curr.type = nodes[i].type;
+    curr.edges = {};
+    for (let j = 0; j < symbols.length; j += 1) {
+      if (nodes[i].trans.hasOwnProperty(symbols[j])) {
+        curr.edges[symbols[j]] = nodes[i].trans[symbols[j]].nature - 1;
+      }
+    }
+    graph[nodes[i].nature - 1] = curr;
+  }
+  //   console.log("lexical out: ", JSON.stringify(graph));
+  return graph;
+}
+
+function regexToMinDFASpec(str) {
+  // Replace all A-Z with A2Z etc
+  let combined_nosep = str
+    .replaceAll("A-Z", A2Z_nosep)
+    .replaceAll("a-z", a2z_nosep)
+    .replaceAll("0-9", r0to9_nosep)
+    .replaceAll("\\w", A2Z_nosep + r0to9_nosep + a2z_nosep);
+
+  function addPipeInsideBrackets(str) {
+    let result = "";
+    let insideBrackets = false;
+    let index = 0;
+    let currChar;
+    while (true) {
+      currChar = str[index];
+      if (index >= str.length) {
+        break;
+      }
+      if (currChar === "[") {
+        result += "(";
+        insideBrackets = true;
+        index++;
+        continue;
+      } else if (currChar === "]") {
+        currChar = insideBrackets ? ")" : currChar;
+        insideBrackets = false;
+      }
+      if (currChar === "\\") {
+        index++;
+        currChar = str[index];
+        // in case with escape +
+        if (currChar === "+") {
+          currChar = "\\+";
+        }
+        if (currChar === "*") {
+          currChar = "\\*";
+        }
+        if (currChar === "/") {
+          currChar = "\\/";
+        }
+        if (currChar === "?") {
+          currChar = "\\?";
+        }
+        if (currChar === "(") {
+          currChar = "\\(";
+        }
+        if (currChar === ")") {
+          currChar = "\\)";
+        }
+        if (currChar === "[") {
+          currChar = "\\[";
+        }
+        if (currChar === "\\") {
+          currChar = "\\\\";
+        }
+        if (currChar === "|") {
+          currChar = "\\|";
+        }
+        // } else if (currChar === "n") {
+        //   currChar = "\\n";
+        // } else if (currChar === "t") {
+        //   currChar = "\\t";
+        // } else if (currChar === "r") {
+        //   currChar = "\\r";
+        // }
+      }
+      result += insideBrackets ? "|" + currChar : currChar;
+      index++;
+    }
+    return result.replaceAll("(|", "(");
+  }
+
+  return addPipeInsideBrackets(combined_nosep);
+}
+function simplifyGraph(regex) {
+  const regex_spec = regexToMinDFASpec(regex);
+  const ast = regexpTree.parse(`/${regex_spec}/`);
+  regexpTree.traverse(ast, {
+    "*": function ({ node }) {
+      if (node.type === "CharacterClass") {
+        throw new Error("CharacterClass not supported");
+      }
+    },
+  });
+
+  const graph_json = compile(regex_spec);
+  const N = graph_json.length;
+  states = [];
+  alphabets = new Set();
+  start_state = "0";
+  accepted_states = new Set();
+  transitions = {};
+  for (let i = 0; i < N; i++) {
+    states.push(i.toString());
+    transitions[i.toString()] = {};
+  }
+
+  //loop through all the graph
+  for (let i = 0; i < N; i++) {
+    if (graph_json[i]["type"] == "accept") {
+      accepted_states.add(i.toString());
+    }
+    if (graph_json[i]["edges"] != {}) {
+      const keys = Object.keys(graph_json[i]["edges"]);
+      for (let j = 0; j < keys.length; j++) {
+        const key = keys[j];
+        let arr_key = key.substring(1, key.length - 1).split(",");
+        for (let k = 0; k < arr_key.length; k++) {
+          let alp = arr_key[k].substring(1, arr_key[k].length - 1);
+          if (!(alp in alphabets)) {
+            alphabets.add(alp);
+          }
+          transitions[i][alp] = graph_json[i]["edges"][key].toString();
+        }
+      }
+    }
+  }
+
+  return {
+    states: states,
+    alphabets: alphabets,
+    start_state: start_state,
+    accepted_states: accepted_states,
+    transitions: transitions,
+  };
+}
 
 // function
 module.exports = {
@@ -918,4 +1162,7 @@ module.exports = {
   regexSubmatch,
   findMatchStateM4,
   regexSubmatchFromState,
+  findSubstrings,
+  simplifyGraph,
+  findSubstrings,
 };
