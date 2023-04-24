@@ -1,31 +1,26 @@
-const og_lexical = require("./og_lexical");
-const path = require("path");
-const regexpTree = require("regexp-tree");
-const assert = require("assert");
-const lexical = require("./lexical");
+/*jslint browser: true*/
+/*global require, exports*/
+// import { STRING_PRESELECTOR } from "../src/helpers/constants.ts";
 
-const a2z = "a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z";
-const A2Z = "A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z";
-const r0to9 = "0|1|2|3|4|5|6|7|8|9";
-const alphanum = `${a2z}|${A2Z}|${r0to9}`;
-
-const key_chars = `(${a2z})`;
-// hypothesis: is key_chars in email only limit to these chars below?
-const succ_key_chars = "(v|a|c|d|s|t|h)";
-const catch_all =
-  "(0|1|2|3|4|5|6|7|8|9|a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|!|\"|#|$|%|&|'|\\(|\\)|\\*|\\+|,|-|.|\\/|:|;|<|=|>|\\?|@|\\[|\\\\|]|^|_|`|{|\\||}|~| |\t|\n|\r|\x0b|\x0c)";
-// Not the same: \\[ and ]
-const catch_all_without_semicolon =
-  "(0|1|2|3|4|5|6|7|8|9|a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|!|\"|#|$|%|&|'|\\(|\\)|\\*|\\+|,|-|.|\\/|:|<|=|>|\\?|@|\\[|\\\\|]|^|_|`|{|\\||}|~| |\t|\n|\r|\x0b|\x0c)";
-
-const email_chars = `${alphanum}|_|.|-`;
-const base_64 = `(${alphanum}|\\+|\\/|=)`;
-const word_char = `(${alphanum}|_)`;
-const a2z_nosep = "abcdefghijklmnopqrstuvwxyz";
-const A2Z_nosep = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const r0to9_nosep = "0123456789";
-const email_address_regex = `([a-zA-Z0-9._%\\+-]+@[a-zA-Z0-9.-]+.[a-zA-Z0-9]+)`;
-// same as original
+/**
+ * Try parsing simple regular expression to syntax tree.
+ *
+ * Basic grammars:
+ *   Empty: S -> ϵ
+ *   Cat:   S -> S S
+ *   Or:    S -> S | S
+ *   Star:  S -> S *
+ *   Text:  S -> [0-9a-zA-Z]
+ *   S -> ( S )
+ *
+ * Extension:
+ *   Plus:  S -> S + -> S S *
+ *   Ques:  S -> S ? -> (S | ϵ)
+ *
+ * @param {string} text The input regular expression
+ * @return {string|object} Returns a string that is an error message if failed to parse the expression,
+ *                         otherwise returns an object which is the syntax tree.
+ */
 function parseRegex(text) {
   "use strict";
   function parseSub(text, begin, end, first) {
@@ -160,200 +155,107 @@ function parseRegex(text) {
 
   let new_text = [];
   let i = 0;
+
   while (i < text.length) {
     if (text[i] == "\\") {
+      // change here to make fancy: \n, \t, \r, \x0b, \x0c
+      // if (text[i + 1] == "n") {
+      //   new_text.push(["\n"]);
+      // } else if (text[i + 1] == "t") {
+      //   new_text.push(["\t"]);
+      // } else if (text[i + 1] == "r") {
+      //   new_text.push(["\r"]);
+      // } else if (
+      //   text[i + 1] == "x" &&
+      //   text[i + 2] == "0" &&
+      //   text[i + 3] == "b"
+      // ) {
+      //   new_text.push(["\x0b"]);
+      //   console.log("haha");
+      //   i += 2;
+      // } else if (
+      //   text[i + 1] == "x" &&
+      //   text[i + 2] == "0" &&
+      //   text[i + 3] == "c"
+      // ) {
+      //   new_text.push(["\x0c"]);
+      //   i += 2;
+      // } else {
       new_text.push([text[i + 1]]);
+      // }
+      // done change
       i += 2;
     } else {
       new_text.push(text[i]);
       i += 1;
     }
   }
+  // console.log("new_text: ", new_text);
   return parseSub(new_text, 0, new_text.length, true);
 }
-// Assume submatch already ordered by order of (
-function checkBeginGroup(index, submatches) {
-  let result = [];
-  for (let i = 0; i < submatches.length; i++) {
-    if (submatches[i][0] == index) {
-      result.push(i);
-    }
-  }
-  if (result.length != 0) {
-    return result;
-  }
-  return false;
-}
-// reverse order
-function checkEndGroup(index, submatches) {
-  let result = [];
-  for (let i = submatches.length - 1; i >= 0; i--) {
-    if (submatches[i][1] == index) {
-      result.push(i);
-    }
-  }
-  if (result.length != 0) {
-    return result;
-  }
-  return false;
-}
-// create M1
-// submatches = [[begin1, end1], [begin2, end2], ...]
-function regexToM1(text, submatches) {
+
+/**
+ * Convert regular expression to nondeterministic finite automaton.
+ *
+ * @param {string} text @see parseRegex()
+ * @return {object|string}
+ */
+function regexToNfa(text) {
   "use strict";
-  function generateGraph(node, start, end, count, submatches, memS, memE) {
-    var i,
-      last,
-      temp,
-      tempStart,
-      tempEnd,
-      beginTag,
-      endTag,
-      realStart,
-      interEnd;
+  function generateGraph(node, start, end, count) {
+    var i, last, temp, tempStart, tempEnd;
     if (!start.hasOwnProperty("id")) {
       start.id = count;
       count += 1;
     }
-    realStart = start;
-    beginTag = checkBeginGroup(node.begin, submatches);
-    // console.log("beginTag: ", beginTag);
-    endTag = checkEndGroup(node.end - 1, submatches);
-    // console.log("EndTag: ", endTag);
-
-    if (beginTag) {
-      temp = start;
-      last = start;
-      for (let i = 0; i < beginTag.length; i++) {
-        if (!memS.includes(beginTag[i])) {
-          memS.push(beginTag[i]);
-          last = { type: "", edges: [] };
-          temp.edges.push([["S", beginTag[i]], last]);
-          last.id = count;
-          count += 1;
-          temp = last;
-        }
-      }
-      realStart = last;
-      // console.log("real ", realStart);
-    }
-    // interEnd is stuffs state before end. Use as end in this stuffs. will assign id at the end.
-    interEnd = end;
-    if (endTag) {
-      var newTag = [];
-
-      for (let i = 0; i < endTag.length; i++) {
-        if (!memE.includes(endTag[i])) {
-          newTag.push(endTag[i]);
-        }
-      }
-      if (newTag.length >= 1) {
-        interEnd = { type: "", edges: [] };
-        temp = interEnd;
-        last = interEnd;
-        for (let i = 0; i < newTag.length - 1; i++) {
-          memE.push(newTag[i]);
-          last = { type: "", edges: [] };
-          temp.edges.push([["E", newTag[i]], last]);
-          temp = last;
-        }
-        memE.push(newTag[newTag.length - 1]);
-        last.edges.push([["E", newTag[newTag.length - 1]], end]);
-      } else {
-        interEnd = end;
-      }
-    }
-
     switch (node.type) {
-      // Ignore this case first :)
-      // case "empty":
-      //   let mem = realStart.type + end.type;
-      //   end = realStart;
-      //   end.type = mem;
-      //   return [count, end];
+      case "empty":
+        start.edges.push(["ϵ", end]);
+        break;
       case "text":
-        realStart.edges.push([[node.text], interEnd]);
+        start.edges.push([node.text, end]);
         break;
       case "cat":
-        last = realStart;
+        last = start;
         for (i = 0; i < node.parts.length - 1; i += 1) {
           temp = { type: "", edges: [] };
-          let result = generateGraph(
-            node.parts[i],
-            last,
-            temp,
-            count,
-            submatches,
-            memS,
-            memE
-          );
-          count = result[0];
-          temp = result[1];
+          count = generateGraph(node.parts[i], last, temp, count);
           last = temp;
         }
         count = generateGraph(
           node.parts[node.parts.length - 1],
           last,
-          interEnd,
-          count,
-          submatches,
-          memS,
-          memE
-        )[0];
+          end,
+          count
+        );
         break;
       case "or":
         for (i = 0; i < node.parts.length; i += 1) {
           tempStart = { type: "", edges: [] };
-          realStart.edges.push([["ϵ", i], tempStart]);
-          count = generateGraph(
-            node.parts[i],
-            tempStart,
-            interEnd,
-            count,
-            submatches,
-            memS,
-            memE
-          )[0];
+          tempEnd = { type: "", edges: [["ϵ", end]] };
+          start.edges.push(["ϵ", tempStart]);
+          count = generateGraph(node.parts[i], tempStart, tempEnd, count);
         }
         break;
-      //Use only greedy, maybe implement reluctant later
       case "star":
         tempStart = { type: "", edges: [] };
         tempEnd = {
           type: "",
           edges: [
-            [["ϵ", 0], tempStart],
-            [["ϵ", 1], interEnd],
+            ["ϵ", tempStart],
+            ["ϵ", end],
           ],
         };
-        realStart.edges.push([["ϵ", 0], tempStart]);
-        realStart.edges.push([["ϵ", 1], interEnd]);
-        count = generateGraph(
-          node.sub,
-          tempStart,
-          tempEnd,
-          count,
-          submatches,
-          memS,
-          memE
-        )[0];
+        start.edges.push(["ϵ", tempStart]);
+        start.edges.push(["ϵ", end]);
+        count = generateGraph(node.sub, tempStart, tempEnd, count);
         break;
-    }
-    var backMargin = interEnd;
-    // console.log("check: ", backMargin);
-    while (backMargin != end) {
-      if (!backMargin.hasOwnProperty("id")) {
-        backMargin.id = count;
-        count += 1;
-      }
-      backMargin = backMargin.edges[0][1];
     }
     if (!end.hasOwnProperty("id")) {
       end.id = count;
       count += 1;
     }
-
-    return [count, end];
+    return count;
   }
   var ast = parseRegex(text),
     start = { type: "start", edges: [] },
@@ -361,808 +263,350 @@ function regexToM1(text, submatches) {
   if (typeof ast === "string") {
     return ast;
   }
-  generateGraph(ast, start, accept, 0, submatches, [], []);
+  generateGraph(ast, start, accept, 0);
   return start;
 }
 
-function findQ2(m1, q2, mem = new Set()) {
-  if (mem.has(m1)) {
-    // console.log("exist already, id: ", m1.id);
-    return;
-  } else {
-    mem.add(m1);
-  }
-  var edges = m1.edges;
-  if (m1.type == "accept") {
-    q2.push(m1);
-    return;
-  }
-  for (let i = 0; i < edges.length; i++) {
-    if (edges[i][0].length == 1) {
-      q2.push(m1);
-      break;
-    }
-  }
-
-  for (let i = 0; i < m1.edges.length; i++) {
-    // console.log("edge of ", m1.id, " : ", m1.edges[i][0]);
-    findQ2(m1.edges[i][1], q2, mem);
-  }
-}
-function piOnM1(m1, start, end, visited = new Set()) {
-  if (start == end) {
-    return true;
-  }
-  visited.add(start);
-  var edges = start.edges;
-  for (let i = 0; i < edges.length; i++) {
-    // skip alphabet edge
-    if (edges[i][0].length == 1) {
-      continue;
-    }
-    if (visited.has(edges[i][1])) {
-      continue;
-    }
-    if (piOnM1(m1, edges[i][1], end, visited)) {
-      return true;
-    }
-  }
-  return false;
-}
-function deltaQ2(m1, q2) {
-  result = [];
-  for (let i = 0; i < q2.length; i++) {
-    for (let j = 0; j < q2.length; j++) {
-      var start = q2[i];
-      var end = q2[j];
-      for (let k = 0; k < start.edges.length; k++) {
-        if (start.edges[k][0].length == 1) {
-          if (piOnM1(m1, start.edges[k][1], end)) {
-            result.push([start, start.edges[k][0][0], end]);
-          }
-        }
-      }
-    }
-  }
-  return result;
-}
-function M1ToM2(m1) {
+/**
+ * Convert nondeterministic finite automaton to deterministic finite automaton.
+ *
+ * @param {object} nfa @see regexToNfa(), the function assumes that the given NFA is valid.
+ * @return {object} dfa Returns the first element of the DFA.
+ */
+function nfaToDfa(nfa) {
   "use strict";
-  var q2 = [];
-  findQ2(m1, q2);
-  for (let i = 0; i < q2.length; i++) {
-    if (piOnM1(m1, m1, q2[i])) {
-      q2[i].type = "start";
-    }
-  }
-  var transition = deltaQ2(m1, q2);
-  var q2_m2 = {};
-  for (let i = 0; i < transition.length; i++) {
-    if (!q2_m2.hasOwnProperty(transition[i][0].id)) {
-      q2_m2[transition[i][0].id] = {
-        type: transition[i][0].type,
-        edges: [],
-        id: transition[i][0].id,
-      };
-    }
-    if (!q2_m2.hasOwnProperty(transition[i][2].id)) {
-      q2_m2[transition[i][2].id] = {
-        type: transition[i][2].type,
-        edges: [],
-        id: transition[i][2].id,
-      };
-    }
-    q2_m2[transition[i][0].id].edges.push([
-      transition[i][1],
-      q2_m2[transition[i][2].id],
-    ]);
-  }
-  return { q2: q2_m2, trans: transition };
-}
-function setsAreEqual(set1, set2) {
-  return (
-    set1.size === set2.size && [...set1].every((element) => set2.has(element))
-  );
-}
-
-function M2ToM3(q2_m2, transition) {
-  var q3 = [];
-  var q3_m3 = new Set();
-  var transition_3 = {};
-  var visited = new Set();
-  var start_q2 = new Set();
-  var accepted = new Set();
-  var start;
-  // set q3 to [{f}]
-  for (let key in q2_m2) {
-    if (q2_m2[key].type == "accept") {
-      var temp = new Set();
-      temp.add(q2_m2[key]);
-      start = q2_m2[key].id.toString();
-      q3.push(temp);
-    }
-    if (q2_m2[key].type == "start") {
-      start_q2.add(key);
-    }
-  }
-
-  // inside loop
-  while (q3.length > 0) {
-    var state_set = q3.pop();
-    var states_id = [];
-    for (const state of state_set) {
-      states_id.push(state.id);
-    }
-    states_id.sort((a, b) => a - b);
-    states_id = states_id.toString();
-    if (visited.has(states_id)) {
-      continue;
-    }
-    var checkStart = states_id.split(",");
-    for (const state of checkStart) {
-      if (start_q2.has(state)) {
-        accepted.add(states_id);
-        break;
+  function getClosure(nodes) {
+    var i,
+      closure = [],
+      stack = [],
+      symbols = [],
+      type = "",
+      top;
+    for (i = 0; i < nodes.length; i += 1) {
+      stack.push(nodes[i]);
+      closure.push(nodes[i]);
+      if (nodes[i].type === "accept") {
+        type = "accept";
       }
     }
-    q3_m3.add(states_id);
-    visited.add(states_id);
-    var alp_dict = {};
-    for (const state of state_set) {
-      for (let i = 0; i < transition.length; i++) {
-        if (transition[i][2].id == state.id) {
-          if (!(transition[i][1] in alp_dict)) {
-            alp_dict[transition[i][1]] = new Set();
+    while (stack.length > 0) {
+      top = stack.pop();
+      for (i = 0; i < top.edges.length; i += 1) {
+        if (top.edges[i][0] === "ϵ") {
+          if (closure.indexOf(top.edges[i][1]) < 0) {
+            stack.push(top.edges[i][1]);
+            closure.push(top.edges[i][1]);
+            if (top.edges[i][1].type === "accept") {
+              type = "accept";
+            }
           }
-          alp_dict[transition[i][1]].add(transition[i][0]);
+        } else {
+          if (symbols.indexOf(top.edges[i][0]) < 0) {
+            symbols.push(top.edges[i][0]);
+          }
         }
       }
     }
-    for (let alp in alp_dict) {
-      if (alp_dict[alp].size > 0) {
-        q3.push(alp_dict[alp]);
-        var alp_string = [];
-        for (const state of alp_dict[alp]) {
-          alp_string.push(state.id);
+    closure.sort(function (a, b) {
+      return a.id - b.id;
+    });
+    symbols.sort();
+    return {
+      key: closure
+        .map(function (x) {
+          return x.id;
+        })
+        .join(","),
+      items: closure,
+      symbols: symbols,
+      type: type,
+      edges: [],
+      trans: {},
+    };
+  }
+  function getClosedMove(closure, symbol) {
+    var i,
+      j,
+      node,
+      nexts = [];
+    for (i = 0; i < closure.items.length; i += 1) {
+      node = closure.items[i];
+      for (j = 0; j < node.edges.length; j += 1) {
+        if (symbol === node.edges[j][0]) {
+          if (nexts.indexOf(node.edges[j][1]) < 0) {
+            nexts.push(node.edges[j][1]);
+          }
         }
-        alp_string.sort((a, b) => a - b);
-        alp_string = alp_string.toString();
-        if (!(states_id in transition_3)) {
-          transition_3[states_id] = {};
+      }
+    }
+    return getClosure(nexts);
+  }
+  function toAlphaCount(n) {
+    var a = "A".charCodeAt(0),
+      z = "Z".charCodeAt(0),
+      len = z - a + 1,
+      s = "";
+    while (n >= 0) {
+      s = String.fromCharCode((n % len) + a) + s;
+      n = Math.floor(n / len) - 1;
+    }
+    return s;
+  }
+  var i,
+    first = getClosure([nfa]),
+    states = {},
+    front = 0,
+    top,
+    closure,
+    queue = [first],
+    count = 0;
+  first.id = toAlphaCount(count);
+  states[first.key] = first;
+  while (front < queue.length) {
+    top = queue[front];
+    front += 1;
+    for (i = 0; i < top.symbols.length; i += 1) {
+      closure = getClosedMove(top, top.symbols[i]);
+      if (!states.hasOwnProperty(closure.key)) {
+        count += 1;
+        closure.id = toAlphaCount(count);
+        states[closure.key] = closure;
+        queue.push(closure);
+      }
+      top.trans[top.symbols[i]] = states[closure.key];
+      top.edges.push([top.symbols[i], states[closure.key]]);
+    }
+  }
+  return first;
+}
+
+/**
+ * Convert the DFA to its minimum form using Hopcroft's algorithm.
+ *
+ * @param {object} dfa @see nfaToDfa(), the function assumes that the given DFA is valid.
+ * @return {object} dfa Returns the first element of the minimum DFA.
+ */
+function minDfa(dfa) {
+  "use strict";
+  function getReverseEdges(start) {
+    var i,
+      top,
+      symbol,
+      next,
+      front = 0,
+      queue = [start],
+      visited = {},
+      symbols = {}, // The input alphabet
+      idMap = {}, // Map id to states
+      revEdges = {}; // Map id to the ids which connects to the id with an alphabet
+    visited[start.id] = true;
+    while (front < queue.length) {
+      top = queue[front];
+      front += 1;
+      idMap[top.id] = top;
+      for (i = 0; i < top.symbols.length; i += 1) {
+        symbol = top.symbols[i];
+        if (!symbols.hasOwnProperty(symbol)) {
+          symbols[symbol] = true;
         }
-        transition_3[states_id][alp] = alp_string;
+        next = top.trans[symbol];
+        if (!revEdges.hasOwnProperty(next.id)) {
+          revEdges[next.id] = {};
+        }
+        if (!revEdges[next.id].hasOwnProperty(symbol)) {
+          revEdges[next.id][symbol] = [];
+        }
+        revEdges[next.id][symbol].push(top.id);
+        if (!visited.hasOwnProperty(next.id)) {
+          visited[next.id] = true;
+          queue.push(next);
+        }
       }
     }
+    return [Object.keys(symbols), idMap, revEdges];
   }
-  return {
-    q3: q3_m3,
-    start_state: start,
-    accept_states: accepted,
-    trans: transition_3,
-  };
-}
-function SimulateM1(m1) {
-  function simulate_M1(m1, q1, tran, accepted) {
-    if (q1.has(m1.id)) {
-      // console.log("exist already, id: ", m1.id);
-      return;
-    } else {
-      q1.add(m1.id);
-    }
-    var edges = m1.edges;
-    if (m1.type == "accept") {
-      accepted.push(m1.id);
-      return;
-    }
-    for (let i = 0; i < m1.edges.length; i++) {
-      // console.log("edge of ", m1.id, " : ", m1.edges[i][0]);
-      if (!(m1.id in tran)) {
-        tran[m1.id] = {};
-      }
-      tran[m1.id][m1.edges[i][0].toString()] = m1.edges[i][1].id.toString();
-      simulate_M1(m1.edges[i][1], q1, tran, accepted);
-    }
-  }
-  var q1 = new Set();
-  var tran = {};
-  var accepted = [];
-  simulate_M1(m1, q1, tran, accepted);
-  return { q1: q1, accepted: accepted, tran: tran };
-}
-function piOnM1_path(simplified_m1, start_id, end_id, visited = new Set()) {
-  if (start_id == end_id) {
-    return "";
-  }
-  visited.add(start_id);
-  // var edges = start.edges;
-  for (let alp in simplified_m1["tran"][start_id]) {
-    // skip alphabet edge
-    if (alp.split(",").length == 1) {
-      continue;
-    }
-    if (visited.has(simplified_m1["tran"][start_id][alp])) {
-      continue;
-    }
-    if (piOnM1(m1, edges[i][1], end, visited)) {
-      return true;
-    }
-  }
-  return false;
-}
-function findAllPaths(graph, start_id, end_id) {
-  const visited = new Set();
-  const paths = [];
-
-  function dfs(node_id, path, tran) {
-    if (node_id === end_id) {
-      paths.push({ path: path, tran: tran });
-      return;
-    }
-
-    visited.add(node_id);
-
-    for (const key in graph["tran"][node_id]) {
-      if (
-        key.split(",").length > 1 &&
-        !visited.has(graph["tran"][node_id][key])
-      ) {
-        // console.log(
-        //   "from ",
-        //   node_id,
-        //   " with ",
-        //   key,
-        //   " to ",
-        //   graph["tran"][node_id][key]
-        // );
-        // console.log("one here: ", [...path, graph["tran"][node_id][key]]);
-        // console.log("second here ", [...tran, key]);
-        dfs(
-          graph["tran"][node_id][key],
-          [...path, graph["tran"][node_id][key]],
-          [...tran, key]
-        );
+  function hopcroft(symbols, idMap, revEdges) {
+    var i,
+      j,
+      k,
+      keys,
+      key,
+      key1,
+      key2,
+      top,
+      group1,
+      group2,
+      symbol,
+      revGroup,
+      ids = Object.keys(idMap).sort(),
+      partitions = {},
+      front = 0,
+      queue = [],
+      visited = {};
+    group1 = [];
+    group2 = [];
+    for (i = 0; i < ids.length; i += 1) {
+      if (idMap[ids[i]].type === "accept") {
+        group1.push(ids[i]);
+      } else {
+        group2.push(ids[i]);
       }
     }
-
-    visited.delete(node_id);
+    key = group1.join(",");
+    partitions[key] = group1;
+    queue.push(key);
+    visited[key] = 0;
+    if (group2.length !== 0) {
+      key = group2.join(",");
+      partitions[key] = group2;
+      queue.push(key);
+    }
+    while (front < queue.length) {
+      top = queue[front];
+      front += 1;
+      if (top) {
+        top = top.split(",");
+        for (i = 0; i < symbols.length; i += 1) {
+          symbol = symbols[i];
+          revGroup = {};
+          for (j = 0; j < top.length; j += 1) {
+            if (
+              revEdges.hasOwnProperty(top[j]) &&
+              revEdges[top[j]].hasOwnProperty(symbol)
+            ) {
+              for (k = 0; k < revEdges[top[j]][symbol].length; k += 1) {
+                revGroup[revEdges[top[j]][symbol][k]] = true;
+              }
+            }
+          }
+          keys = Object.keys(partitions);
+          for (j = 0; j < keys.length; j += 1) {
+            key = keys[j];
+            group1 = [];
+            group2 = [];
+            for (k = 0; k < partitions[key].length; k += 1) {
+              if (revGroup.hasOwnProperty(partitions[key][k])) {
+                group1.push(partitions[key][k]);
+              } else {
+                group2.push(partitions[key][k]);
+              }
+            }
+            if (group1.length !== 0 && group2.length !== 0) {
+              delete partitions[key];
+              key1 = group1.join(",");
+              key2 = group2.join(",");
+              partitions[key1] = group1;
+              partitions[key2] = group2;
+              if (visited.hasOwnProperty(key1)) {
+                queue[visited[key1]] = null;
+                visited[key1] = queue.length;
+                queue.push(key1);
+                visited[key2] = queue.length;
+                queue.push(key2);
+              } else if (group1.length <= group2.length) {
+                visited[key1] = queue.length;
+                queue.push(key1);
+              } else {
+                visited[key2] = queue.length;
+                queue.push(key2);
+              }
+            }
+          }
+        }
+      }
+    }
+    return Object.values(partitions);
   }
-
-  dfs(start_id, [start_id], []);
-
-  return paths;
-}
-function tranMoreThan(tran1, tran2) {
-  const num = () => (tran1.length < tran2.length ? tran1.length : tran2.length);
-  for (let i = 0; i < num; i++) {
-    var tag1 = tran1[i].split(",")[0];
-    var pri1 = tran1[i].split(",")[1];
-    var tag2 = tran2[i].split(",")[0];
-    var pri2 = tran2[i].split(",")[1];
-    if (tag1 == "ϵ" && tag2 == "ϵ") {
-      if (parseInt(pri1) < parseInt(pri2)) {
-        return 1;
-      } else if (parseInt(pri1) > parseInt(pri2)) {
+  function buildMinNfa(start, partitions, idMap, revEdges) {
+    var i,
+      j,
+      temp,
+      node,
+      symbol,
+      nodes = [],
+      group = {},
+      edges = {};
+    partitions.sort(function (a, b) {
+      var ka = a.join(","),
+        kb = b.join(",");
+      if (ka < kb) {
         return -1;
       }
-    }
-  }
-  if (tran1.length == tran2.length) {
-    return 0;
-  } else {
-    const result = () => (tran1.length < tran2.length ? -1 : 1);
-    return result;
-  }
-}
-
-const maxIndex = (arr, comparator) => {
-  let maxIndex = 0;
-  for (let i = 1; i < arr.length; i++) {
-    if (comparator(arr[i], arr[maxIndex]) == 1) {
-      maxIndex = i;
-    }
-  }
-  return maxIndex;
-};
-function onlyTag(arr) {
-  result = [];
-  for (const ele of arr) {
-    if (ele.split(",")[0] != "ϵ") {
-      result.push(ele);
-    }
-  }
-  return result;
-}
-function createM4(m1, m3) {
-  var simplified_m1 = SimulateM1(m1);
-  var q4 = {};
-  var accepted = [];
-  // q4 = {state: {b: next, a: next}, ...}
-  for (let key in simplified_m1["tran"]) {
-    for (let alp in simplified_m1["tran"][key]) {
-      if (alp.split(",").length == 1) {
-        if (!(key in q4)) {
-          q4[key] = {};
-        }
-        q4[key][alp] = simplified_m1["tran"][key][alp];
+      if (ka > kb) {
+        return 1;
       }
-    }
-  }
-  // finish q4, now search in m1 stuffs. From Q3.
-  var all_trans = {};
-  for (const subset of m3["q3"]) {
-    var states = subset.split(",");
-    for (const p in q4) {
-      var paths = [];
-      var trans = [];
-      for (const key in q4[p]) {
-        for (const state of states) {
-          var search = findAllPaths(simplified_m1, q4[p][key], state);
-          if (search.length > 0) {
-            for (const oneSearch of search) {
-              paths.push(oneSearch["path"]);
-              trans.push(oneSearch["tran"]);
-            }
-          }
-        }
-      }
-      if (paths.length > 0) {
-        if (!(p in all_trans)) {
-          all_trans[p] = {};
-        }
-        var maxInd = maxIndex(trans, tranMoreThan);
-        var best_path = paths[maxInd];
-        all_trans[p][subset] = [
-          best_path[best_path.length - 1],
-          // put JSON.stringify for reading sake
-          // JSON.stringify(onlyTag(trans[maxInd])),
-          onlyTag(trans[maxInd]),
-        ];
-      }
-    }
-  }
-  all_trans["start"] = {};
-  for (const subset of m3["q3"]) {
-    var states = subset.split(",");
-    var paths = [];
-    var trans = [];
-    for (const state of states) {
-      var search = findAllPaths(simplified_m1, "0", state);
-      if (search.length > 0) {
-        for (const oneSearch of search) {
-          paths.push(oneSearch["path"]);
-          trans.push(oneSearch["tran"]);
-        }
-      }
-      if (paths.length > 0) {
-        // console.log("all path of ", states, " is ", trans);
-        var maxInd = maxIndex(trans, tranMoreThan);
-        var best_path = paths[maxInd];
-        all_trans["start"][subset] = [
-          best_path[best_path.length - 1],
-          // put JSON.stringify for reading sake
-          // JSON.stringify(onlyTag(trans[maxInd])),
-          onlyTag(trans[maxInd]),
-        ];
-      }
-    }
-  }
-  // Not set, will standardize later
-  var q4_withAcc = Object.keys(q4);
-  for (const ele of simplified_m1["accepted"]) {
-    q4_withAcc.push(ele.toString());
-  }
-  // console.log("trannnn ", all_trans);
-  return {
-    q4: q4_withAcc,
-    start: "start",
-    accepted: simplified_m1["accepted"].toString(),
-    tran: all_trans,
-  };
-}
-// show what state transition is included for revealing a subgroup match.
-// memTags {tag1: set("[from1, to1]","[from2, to2]"", ...), tag2: [...]}
-// memTag {tag1: }
-// boolTag{tag1: true, tag2: False}
-function findMatchStateM4(m4) {
-  var tranGraph = m4["tran"];
-  var allTags = {};
-  // dfa not have cycle, except self referential
-  function findMatchState(node_id, memTags, boolTags) {
-    if (node_id == m4["accepted"]) {
-      for (const key in memTags) {
-        if (!(key in allTags)) {
-          allTags[key] = new Set();
-        }
-        for (const strTran of memTags[key]) {
-          allTags[key].add(strTran);
-        }
-      }
-      return;
-    }
-    // duplicate memTags and boolTags
-    var cl_memTags = {};
-    for (const key in memTags) {
-      cl_memTags[key] = new Set(memTags[key]);
-    }
-    // console.log("check ", node_id, cl_memTags);
-    var cl_boolTags = Object.assign({}, boolTags);
-    // take care of self-referential
-    for (const key in tranGraph[node_id]) {
-      if (tranGraph[node_id][key][0] == node_id) {
-        var tags = tranGraph[node_id][key][1];
-        if (tags.length > 0) {
-          for (const tag of tags) {
-            // console.log("tagg ", tag);
-            var split_tag = tag.split(",");
-            if (split_tag[0] == "E") {
-              cl_boolTags[split_tag[1]] = false;
-            } else {
-              cl_boolTags[split_tag[1]] = true;
-            }
-          }
-        }
-        for (const boolTag in cl_boolTags) {
-          if (cl_boolTags[boolTag]) {
-            if (!(boolTag in cl_memTags)) {
-              cl_memTags[boolTag] = new Set();
-            }
-            cl_memTags[boolTag].add(JSON.stringify([node_id, node_id]));
-          }
+      return 0;
+    });
+    for (i = 0; i < partitions.length; i += 1) {
+      if (partitions[i].indexOf(start.id) >= 0) {
+        if (i > 0) {
+          temp = partitions[i];
+          partitions[i] = partitions[0];
+          partitions[0] = temp;
         }
         break;
       }
     }
-
-    for (const key in tranGraph[node_id]) {
-      if (tranGraph[node_id][key][0] == node_id) {
-        continue;
+    for (i = 0; i < partitions.length; i += 1) {
+      node = {
+        id: (i + 1).toString(),
+        key: partitions[i].join(","),
+        items: [],
+        symbols: [],
+        type: idMap[partitions[i][0]].type,
+        edges: [],
+        trans: {},
+      };
+      for (j = 0; j < partitions[i].length; j += 1) {
+        node.items.push(idMap[partitions[i][j]]);
+        group[partitions[i][j]] = i;
       }
-      var cl2_memTags = {};
-      for (const key in cl_memTags) {
-        cl2_memTags[key] = new Set(cl_memTags[key]);
-      }
-      // console.log("check ", node_id, cl_memTags);
-      var cl2_boolTags = Object.assign({}, cl_boolTags);
-      var tags = tranGraph[node_id][key][1];
-      if (tags.length > 0) {
-        for (const tag of tags) {
-          var split_tag = tag.split(",");
-          if (split_tag[0] == "E") {
-            cl2_boolTags[split_tag[1]] = false;
-          } else {
-            cl2_boolTags[split_tag[1]] = true;
+      edges[i] = {};
+      nodes.push(node);
+    }
+    Object.keys(revEdges).forEach(function (to) {
+      Object.keys(revEdges[to]).forEach(function (symbol) {
+        revEdges[to][symbol].forEach(function (from) {
+          if (!edges[group[from]].hasOwnProperty(group[to])) {
+            edges[group[from]][group[to]] = {};
+          }
+          edges[group[from]][group[to]][symbol] = true;
+        });
+      });
+    });
+    Object.keys(edges).forEach(function (from) {
+      Object.keys(edges[from]).forEach(function (to) {
+        // change here
+        // symbol = JSON.stringify(Object.keys(edges[from][to]).sort());
+        let tmp_obj = Object.keys(edges[from][to]).sort();
+        let modified_symbol = "['";
+        for (let i = 0; i < tmp_obj.length; i++) {
+          modified_symbol += tmp_obj[i] + "'";
+          if (i < tmp_obj.length - 1) {
+            modified_symbol += ",'";
           }
         }
-      }
-      for (const boolTag in cl2_boolTags) {
-        if (cl2_boolTags[boolTag]) {
-          if (!(boolTag in cl2_memTags)) {
-            cl2_memTags[boolTag] = new Set();
-          }
-          cl2_memTags[boolTag].add(
-            JSON.stringify([node_id, tranGraph[node_id][key][0]])
-          );
-        }
-      }
-      findMatchState(tranGraph[node_id][key][0], cl2_memTags, cl2_boolTags);
-    }
+        modified_symbol += "]";
+        nodes[from].symbols.push(modified_symbol);
+        // nodes[from].edges.push([symbol, nodes[to]]);
+        nodes[from].edges.push([modified_symbol, nodes[to]]);
+        // nodes[from].trans[symbol] = nodes[to];
+        nodes[from].trans[modified_symbol] = nodes[to];
+      });
+    });
+    return nodes[0];
   }
-  findMatchState(m4["start"], {}, {});
-  return allTags;
+  var edgesTuple = getReverseEdges(dfa),
+    symbols = edgesTuple[0],
+    idMap = edgesTuple[1],
+    revEdges = edgesTuple[2],
+    partitions = hopcroft(symbols, idMap, revEdges);
+  return buildMinNfa(dfa, partitions, idMap, revEdges);
 }
-function regexSubmatch(text, m3, m4) {
-  var q3_rev_mem = [m3["start_state"]];
-  var node = m3["start_state"];
-  // run through m3
-  for (let i = text.length - 1; i >= 0; i--) {
-    if (node in m3["trans"] && text[i] in m3["trans"][node]) {
-      node = m3["trans"][node][text[i]];
-      q3_rev_mem.push(node);
-    } else {
-      throw new Error("Text not accepted by regex");
-    }
-  }
-
-  // change later in circom
-  var submatch = {};
-  // run through m4
-  node = "start";
-  for (let i = 0; i <= text.length; i++) {
-    if (m4["tran"][node][q3_rev_mem[text.length - i]][1].length > 0) {
-      // console.log("i ", i);
-      for (const tag of m4["tran"][node][q3_rev_mem[text.length - i]][1]) {
-        submatch[tag] = i;
-      }
-    }
-    node = m4["tran"][node][q3_rev_mem[text.length - i]][0];
-  }
-  // console.log("subbbb ", submatch);
-  tag_result = {};
-  for (const key in submatch) {
-    if (!(key.split(",")[1] in tag_result)) {
-      tag_result[key.split(",")[1]] = [submatch[key]];
-    } else {
-      tag_result[key.split(",")[1]].push(submatch[key]);
-    }
-  }
-  // console.log("tag result ", tag_result);
-  return tag_result;
-}
-
-function regexSubmatchFromState(text, m3, m4) {
-  var q3_rev_mem = [m3["start_state"]];
-  var node = m3["start_state"];
-  // run through m3
-  for (let i = text.length - 1; i >= 0; i--) {
-    if (node in m3["trans"] && text[i] in m3["trans"][node]) {
-      node = m3["trans"][node][text[i]];
-      q3_rev_mem.push(node);
-    } else {
-      throw new Error("Text not accepted by regex");
-    }
-  }
-
-  var allTags = findMatchStateM4(m4);
-  var submatch = {};
-  // run through m4
-  node = "start";
-  for (let i = 0; i <= text.length; i++) {
-    for (const tag in allTags) {
-      if (
-        allTags[tag].has(
-          JSON.stringify([
-            node,
-            m4["tran"][node][q3_rev_mem[text.length - i]][0],
-          ])
-        )
-      ) {
-        if (!(tag in submatch)) {
-          submatch[tag] = new Set();
-        }
-        submatch[tag].add(i);
-      }
-    }
-    node = m4["tran"][node][q3_rev_mem[text.length - i]][0];
-  }
-
-  return submatch;
-}
-// Define a function to check whether a string is accepted by the finite automata
-function accepts(simp_graph, str) {
-  let state = simp_graph["start_state"];
-  for (let i = 0; i < str.length; i++) {
-    const symbol = str[i];
-    if (simp_graph["transitions"][state][symbol]) {
-      state = simp_graph["transitions"][state][symbol];
-    } else {
-      return false;
-    }
-  }
-  return simp_graph["accepted_states"].has(state);
-}
-function findSubstrings(simp_graph, text) {
-  const substrings = [];
-  const indexes = [];
-  for (let i = 0; i < text.length; i++) {
-    for (let j = i; j < text.length; j++) {
-      const substring = text.slice(i, j + 1);
-      if (accepts(simp_graph, substring)) {
-        substrings.push(substring);
-        indexes.push([i, j]);
-      }
-    }
-  }
-  // indexes is inclusive at the end
-  // return [substrings, indexes];
-  return [substrings, indexes];
-}
-
-function toNature(col) {
-  var i,
-    j,
-    base = "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-    result = 0;
-  if ("1" <= col[0] && col[0] <= "9") {
-    result = parseInt(col, 10);
-  } else {
-    for (i = 0, j = col.length - 1; i < col.length; i += 1, j -= 1) {
-      result += Math.pow(base.length, j) * (base.indexOf(col[i]) + 1);
-    }
-  }
-  return result;
-}
-function compile(regex) {
-  let nfa = og_lexical.regexToNfa(regex);
-  let dfa = og_lexical.minDfa(og_lexical.nfaToDfa(nfa));
-
-  var i,
-    j,
-    states = {},
-    nodes = [],
-    stack = [dfa],
-    symbols = [],
-    top;
-
-  while (stack.length > 0) {
-    top = stack.pop();
-    if (!states.hasOwnProperty(top.id)) {
-      states[top.id] = top;
-      top.nature = toNature(top.id);
-      nodes.push(top);
-      for (i = 0; i < top.edges.length; i += 1) {
-        if (top.edges[i][0] !== "ϵ" && symbols.indexOf(top.edges[i][0]) < 0) {
-          symbols.push(top.edges[i][0]);
-        }
-        stack.push(top.edges[i][1]);
-      }
-    }
-  }
-  nodes.sort(function (a, b) {
-    return a.nature - b.nature;
-  });
-  symbols.sort();
-
-  let graph = [];
-  for (let i = 0; i < nodes.length; i += 1) {
-    let curr = {};
-    curr.type = nodes[i].type;
-    curr.edges = {};
-    for (let j = 0; j < symbols.length; j += 1) {
-      if (nodes[i].trans.hasOwnProperty(symbols[j])) {
-        curr.edges[symbols[j]] = nodes[i].trans[symbols[j]].nature - 1;
-      }
-    }
-    graph[nodes[i].nature - 1] = curr;
-  }
-  //   console.log("lexical out: ", JSON.stringify(graph));
-  return graph;
-}
-
-function regexToMinDFASpec(str) {
-  // Replace all A-Z with A2Z etc
-  let combined_nosep = str
-    .replaceAll("A-Z", A2Z_nosep)
-    .replaceAll("a-z", a2z_nosep)
-    .replaceAll("0-9", r0to9_nosep)
-    .replaceAll("\\w", A2Z_nosep + r0to9_nosep + a2z_nosep);
-
-  function addPipeInsideBrackets(str) {
-    let result = "";
-    let insideBrackets = false;
-    let index = 0;
-    let currChar;
-    while (true) {
-      currChar = str[index];
-      if (index >= str.length) {
-        break;
-      }
-      if (currChar === "[") {
-        result += "(";
-        insideBrackets = true;
-        index++;
-        continue;
-      } else if (currChar === "]") {
-        currChar = insideBrackets ? ")" : currChar;
-        insideBrackets = false;
-      }
-      if (currChar === "\\") {
-        index++;
-        currChar = str[index];
-        // in case with escape +
-        if (currChar === "+") {
-          currChar = "\\+";
-        }
-        if (currChar === "*") {
-          currChar = "\\*";
-        }
-        if (currChar === "/") {
-          currChar = "\\/";
-        }
-        if (currChar === "?") {
-          currChar = "\\?";
-        }
-        if (currChar === "(") {
-          currChar = "\\(";
-        }
-        if (currChar === ")") {
-          currChar = "\\)";
-        }
-        if (currChar === "[") {
-          currChar = "\\[";
-        }
-        if (currChar === "\\") {
-          currChar = "\\\\";
-        }
-        if (currChar === "|") {
-          currChar = "\\|";
-        }
-        // } else if (currChar === "n") {
-        //   currChar = "\\n";
-        // } else if (currChar === "t") {
-        //   currChar = "\\t";
-        // } else if (currChar === "r") {
-        //   currChar = "\\r";
-        // }
-      }
-      result += insideBrackets ? "|" + currChar : currChar;
-      index++;
-    }
-    return result.replaceAll("(|", "(");
-  }
-
-  return addPipeInsideBrackets(combined_nosep);
-}
-function simplifyGraph(regex) {
-  const regex_spec = regexToMinDFASpec(regex);
-  const ast = regexpTree.parse(`/${regex_spec}/`);
-  regexpTree.traverse(ast, {
-    "*": function ({ node }) {
-      if (node.type === "CharacterClass") {
-        throw new Error("CharacterClass not supported");
-      }
-    },
-  });
-
-  const graph_json = compile(regex_spec);
-  const N = graph_json.length;
-  states = [];
-  alphabets = new Set();
-  start_state = "0";
-  accepted_states = new Set();
-  transitions = {};
-  for (let i = 0; i < N; i++) {
-    states.push(i.toString());
-    transitions[i.toString()] = {};
-  }
-
-  //loop through all the graph
-  for (let i = 0; i < N; i++) {
-    if (graph_json[i]["type"] == "accept") {
-      accepted_states.add(i.toString());
-    }
-    if (graph_json[i]["edges"] != {}) {
-      const keys = Object.keys(graph_json[i]["edges"]);
-      for (let j = 0; j < keys.length; j++) {
-        const key = keys[j];
-        let arr_key = key.substring(1, key.length - 1).split(",");
-        for (let k = 0; k < arr_key.length; k++) {
-          let alp = arr_key[k].substring(1, arr_key[k].length - 1);
-          if (!(alp in alphabets)) {
-            alphabets.add(alp);
-          }
-          transitions[i][alp] = graph_json[i]["edges"][key].toString();
-        }
-      }
-    }
-  }
-
-  return {
-    states: states,
-    alphabets: alphabets,
-    start_state: start_state,
-    accepted_states: accepted_states,
-    transitions: transitions,
-  };
-}
-
-// function
+// only change is export parseRegex
 module.exports = {
   parseRegex,
-  checkBeginGroup,
-  checkEndGroup,
-  regexToM1,
-  M1ToM2,
-  findQ2,
-  piOnM1,
-  deltaQ2,
-  M2ToM3,
-  createM4,
-  SimulateM1,
-  findAllPaths,
-  regexSubmatch,
-  findMatchStateM4,
-  regexSubmatchFromState,
-  findSubstrings,
-  simplifyGraph,
-  findSubstrings,
+  regexToNfa,
+  minDfa,
+  nfaToDfa,
 };
