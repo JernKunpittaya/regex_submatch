@@ -597,13 +597,16 @@ function createM4(m1, m3) {
 function findMatchStateM4(m4) {
   var tranGraph = m4["tran"];
   var allTags = {};
+  var visited_tran = new Set();
+  var num_outward = {};
+  var track_outward = {};
+  for (const key in tranGraph) {
+    num_outward[key] = Object.keys(tranGraph[key]).length;
+    track_outward[key] = 0;
+  }
 
-  // console.log("acce ", m4["accepted"]);
-  // dfa not have cycle, except self referential
   function findMatchState(node_id, memTags, boolTags) {
     if (node_id == m4["accepted"]) {
-      console.log("nod id: ", node_id);
-      console.log("final path: ", memTags);
       for (const key in memTags) {
         if (!(key in allTags)) {
           allTags[key] = new Set();
@@ -614,72 +617,68 @@ function findMatchStateM4(m4) {
       }
       return;
     }
-    // duplicate memTags and boolTags
-    var cl_memTags = {};
-    for (const key in memTags) {
-      cl_memTags[key] = new Set(memTags[key]);
-    }
-    // console.log("check ", node_id, cl_memTags);
-    var cl_boolTags = Object.assign({}, boolTags);
-    // take care of self-referential
-    for (const key in tranGraph[node_id]) {
-      if (tranGraph[node_id][key][0] == node_id) {
-        var tags = tranGraph[node_id][key][1];
-        if (tags.length > 0) {
-          for (const tag of tags) {
-            // console.log("tagg ", tag);
-            var split_tag = tag.split(",");
-            if (split_tag[0] == "E") {
-              cl_boolTags[split_tag[1]] = false;
-            } else {
-              cl_boolTags[split_tag[1]] = true;
-            }
-          }
+    if (track_outward[node_id] == num_outward[node_id]) {
+      for (const key in memTags) {
+        if (!(key in allTags)) {
+          allTags[key] = new Set();
         }
-        for (const boolTag in cl_boolTags) {
-          if (cl_boolTags[boolTag]) {
-            if (!(boolTag in cl_memTags)) {
-              cl_memTags[boolTag] = new Set();
-            }
-            cl_memTags[boolTag].add(JSON.stringify([node_id, node_id]));
-          }
+        for (const strTran of memTags[key]) {
+          allTags[key].add(strTran);
         }
-        break;
       }
+      return;
     }
 
     for (const key in tranGraph[node_id]) {
-      if (tranGraph[node_id][key][0] == node_id) {
+      // if (tranGraph[node_id][key][0] == node_id) {
+      //   continue;
+      // }
+      // if already visit that transition, skip it
+      if (
+        visited_tran.has(JSON.stringify([node_id, tranGraph[node_id][key][0]]))
+      ) {
         continue;
       }
-      var cl2_memTags = {};
-      for (const key in cl_memTags) {
-        cl2_memTags[key] = new Set(cl_memTags[key]);
+      // if not add this visit in
+      visited_tran.add(JSON.stringify([node_id, tranGraph[node_id][key][0]]));
+      track_outward[node_id] += 1;
+      var cl_memTags = {};
+      for (const key in memTags) {
+        cl_memTags[key] = new Set(memTags[key]);
       }
       // console.log("check ", node_id, cl_memTags);
-      var cl2_boolTags = Object.assign({}, cl_boolTags);
+      var cl_boolTags = Object.assign({}, boolTags);
       var tags = tranGraph[node_id][key][1];
       if (tags.length > 0) {
         for (const tag of tags) {
           var split_tag = tag.split(",");
           if (split_tag[0] == "E") {
-            cl2_boolTags[split_tag[1]] = false;
+            cl_boolTags[split_tag[1]] = false;
           } else {
-            cl2_boolTags[split_tag[1]] = true;
+            cl_boolTags[split_tag[1]] = true;
           }
         }
       }
-      for (const boolTag in cl2_boolTags) {
-        if (cl2_boolTags[boolTag]) {
-          if (!(boolTag in cl2_memTags)) {
-            cl2_memTags[boolTag] = new Set();
+      for (const boolTag in cl_boolTags) {
+        if (cl_boolTags[boolTag]) {
+          if (!(boolTag in cl_memTags)) {
+            cl_memTags[boolTag] = new Set();
           }
-          cl2_memTags[boolTag].add(
+          cl_memTags[boolTag].add(
             JSON.stringify([node_id, tranGraph[node_id][key][0]])
           );
         }
       }
-      findMatchState(tranGraph[node_id][key][0], cl2_memTags, cl2_boolTags);
+      findMatchState(tranGraph[node_id][key][0], cl_memTags, cl_boolTags);
+      // delete visited;
+      // console.log("curr visited: ", visited_tran);
+      // console.log(
+      //   "Supposed delete:: ",
+      //   JSON.stringify([node_id, tranGraph[node_id][key][0]])
+      // );
+      // visited_tran.delete(
+      //   JSON.stringify([node_id, tranGraph[node_id][key][0]])
+      // );
     }
   }
   findMatchState(m4["start"], {}, {});
