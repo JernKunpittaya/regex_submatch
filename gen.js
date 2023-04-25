@@ -52,6 +52,9 @@ function checkEndGroup(index, submatches) {
   }
   return false;
 }
+
+// M1 region
+
 // create M1
 // text is basically the naive regex
 // submatches = [[begin1, end1], [begin2, end2], ...]
@@ -220,6 +223,23 @@ function regexToM1(text, submatches) {
   generateGraph(ast, start, accept, 0, submatches, [], []);
   return start;
 }
+
+function readM1(m1, mem = new Set()) {
+  if (mem.has(m1)) {
+    console.log("exist already", m1);
+    return;
+  } else {
+    mem.add(m1);
+  }
+  console.log(m1);
+
+  for (let i = 0; i < m1.edges.length; i++) {
+    console.log("edge of ", m1.id, " : ", m1.edges[i][0]);
+    readM1(m1.edges[i][1], mem);
+  }
+}
+
+// M2 Region
 
 function findQ2(m1, q2, mem = new Set()) {
   if (mem.has(m1)) {
@@ -596,79 +616,6 @@ function createM4(m1, m3) {
 // memTag {tag1: }
 // boolTag{tag1: true, tag2: False}
 
-// Recursive Version: Stack overflow with huge OR statement like `${a2z}|${A2Z}|${r0to9}`
-// function findMatchStateM4(m4) {
-//   var tranGraph = m4["tran"];
-//   var allTags = {};
-//   var visited_tran = new Set();
-//   var num_outward = {};
-//   var track_outward = {};
-//   for (const key in tranGraph) {
-//     num_outward[key] = Object.keys(tranGraph[key]).length;
-//     track_outward[key] = 0;
-//   }
-//   // change if many accepted states
-//   num_outward[m4["accepted"]] = 0;
-//   track_outward[m4["accepted"]] = 0;
-
-//   function findMatchState(node_id, memTags, boolTags) {
-//     if (track_outward[node_id] == num_outward[node_id]) {
-//       for (const key in memTags) {
-//         if (!allTags.hasOwnProperty(key)) {
-//           allTags[key] = new Set();
-//         }
-//         for (const strTran of memTags[key]) {
-//           allTags[key].add(strTran);
-//         }
-//       }
-//       return;
-//     }
-
-//     for (const key in tranGraph[node_id]) {
-//       // if already visit that transition, skip it
-//       if (
-//         visited_tran.has(JSON.stringify([node_id, tranGraph[node_id][key][0]]))
-//       ) {
-//         continue;
-//       }
-//       // if not add this visit in
-//       visited_tran.add(JSON.stringify([node_id, tranGraph[node_id][key][0]]));
-//       track_outward[node_id] += 1;
-//       var cl_memTags = {};
-//       for (const key in memTags) {
-//         cl_memTags[key] = new Set(memTags[key]);
-//       }
-//       // console.log("check ", node_id, cl_memTags);
-//       var cl_boolTags = Object.assign({}, boolTags);
-//       var tags = tranGraph[node_id][key][1];
-//       if (tags.length > 0) {
-//         for (const tag of tags) {
-//           var split_tag = tag.split(",");
-//           if (split_tag[0] == "E") {
-//             cl_boolTags[split_tag[1]] = false;
-//           } else {
-//             cl_boolTags[split_tag[1]] = true;
-//           }
-//         }
-//       }
-//       for (const boolTag in cl_boolTags) {
-//         if (cl_boolTags[boolTag]) {
-//           if (!cl_memTags.hasOwnProperty(boolTag)) {
-//             cl_memTags[boolTag] = new Set();
-//           }
-//           cl_memTags[boolTag].add(
-//             JSON.stringify([node_id, tranGraph[node_id][key][0]])
-//           );
-//         }
-//       }
-//       findMatchState(tranGraph[node_id][key][0], cl_memTags, cl_boolTags);
-//     }
-//   }
-//   findMatchState(m4["start"], {}, {});
-//   return allTags;
-// }
-
-// Non recursive version
 function findMatchStateM4(m4) {
   var tranGraph = m4["tran"];
   var allTags = {};
@@ -838,6 +785,7 @@ module.exports = {
   checkBeginGroup,
   checkEndGroup,
   regexToM1,
+  readM1,
   M1ToM2,
   M2ToM3,
   createM4,

@@ -2,21 +2,7 @@ const fs = require("fs");
 const gen = require("./gen");
 const gen_dfa = require("./gen_DFA");
 const lexical = require("./lexical");
-// let regex = "a(b|c)+d";
-function readM1(m1, mem = new Set()) {
-  if (mem.has(m1)) {
-    console.log("exist already", m1);
-    return;
-  } else {
-    mem.add(m1);
-  }
-  console.log(m1);
 
-  for (let i = 0; i < m1.edges.length; i++) {
-    console.log("edge of ", m1.id, " : ", m1.edges[i][0]);
-    readM1(m1.edges[i][1], mem);
-  }
-}
 //example
 // let regex = "((a*)|b)(ab|b)";
 // let submatches = [
