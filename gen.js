@@ -362,7 +362,7 @@ function M2ToM3(q2_m2, transition) {
     for (const state of state_set) {
       for (let i = 0; i < transition.length; i++) {
         if (transition[i][2].id == state.id) {
-          if (!(transition[i][1] in alp_dict)) {
+          if (!alp_dict.hasOwnProperty(transition[i][1])) {
             alp_dict[transition[i][1]] = new Set();
           }
           alp_dict[transition[i][1]].add(transition[i][0]);
@@ -378,7 +378,7 @@ function M2ToM3(q2_m2, transition) {
         }
         alp_string.sort((a, b) => a - b);
         alp_string = alp_string.toString();
-        if (!(states_id in transition_3)) {
+        if (!transition_3.hasOwnProperty(states_id)) {
           transition_3[states_id] = {};
         }
         transition_3[states_id][alp] = alp_string;
@@ -407,7 +407,7 @@ function SimulateM1(m1) {
     }
     for (let i = 0; i < m1.edges.length; i++) {
       // console.log("edge of ", m1.id, " : ", m1.edges[i][0]);
-      if (!(m1.id in tran)) {
+      if (!tran.hasOwnProperty(m1.id)) {
         tran[m1.id] = {};
       }
       tran[m1.id][m1.edges[i][0].toString()] = m1.edges[i][1].id.toString();
@@ -511,7 +511,7 @@ function createM4(m1, m3) {
   for (let key in simplified_m1["tran"]) {
     for (let alp in simplified_m1["tran"][key]) {
       if (alp.split(",").length == 1) {
-        if (!(key in q4)) {
+        if (!q4.hasOwnProperty(key)) {
           q4[key] = {};
         }
         q4[key][alp] = simplified_m1["tran"][key][alp];
@@ -537,7 +537,7 @@ function createM4(m1, m3) {
         }
       }
       if (paths.length > 0) {
-        if (!(p in all_trans)) {
+        if (!all_trans.hasOwnProperty(p)) {
           all_trans[p] = {};
         }
         var maxInd = maxIndex(trans, tranMoreThan);
@@ -590,10 +590,85 @@ function createM4(m1, m3) {
     tran: all_trans,
   };
 }
+
 // show what state transition is included for revealing a subgroup match.
 // memTags {tag1: set("[from1, to1]","[from2, to2]"", ...), tag2: [...]}
 // memTag {tag1: }
 // boolTag{tag1: true, tag2: False}
+
+// Recursive Version: Stack overflow with huge OR statement like `${a2z}|${A2Z}|${r0to9}`
+// function findMatchStateM4(m4) {
+//   var tranGraph = m4["tran"];
+//   var allTags = {};
+//   var visited_tran = new Set();
+//   var num_outward = {};
+//   var track_outward = {};
+//   for (const key in tranGraph) {
+//     num_outward[key] = Object.keys(tranGraph[key]).length;
+//     track_outward[key] = 0;
+//   }
+//   // change if many accepted states
+//   num_outward[m4["accepted"]] = 0;
+//   track_outward[m4["accepted"]] = 0;
+
+//   function findMatchState(node_id, memTags, boolTags) {
+//     if (track_outward[node_id] == num_outward[node_id]) {
+//       for (const key in memTags) {
+//         if (!allTags.hasOwnProperty(key)) {
+//           allTags[key] = new Set();
+//         }
+//         for (const strTran of memTags[key]) {
+//           allTags[key].add(strTran);
+//         }
+//       }
+//       return;
+//     }
+
+//     for (const key in tranGraph[node_id]) {
+//       // if already visit that transition, skip it
+//       if (
+//         visited_tran.has(JSON.stringify([node_id, tranGraph[node_id][key][0]]))
+//       ) {
+//         continue;
+//       }
+//       // if not add this visit in
+//       visited_tran.add(JSON.stringify([node_id, tranGraph[node_id][key][0]]));
+//       track_outward[node_id] += 1;
+//       var cl_memTags = {};
+//       for (const key in memTags) {
+//         cl_memTags[key] = new Set(memTags[key]);
+//       }
+//       // console.log("check ", node_id, cl_memTags);
+//       var cl_boolTags = Object.assign({}, boolTags);
+//       var tags = tranGraph[node_id][key][1];
+//       if (tags.length > 0) {
+//         for (const tag of tags) {
+//           var split_tag = tag.split(",");
+//           if (split_tag[0] == "E") {
+//             cl_boolTags[split_tag[1]] = false;
+//           } else {
+//             cl_boolTags[split_tag[1]] = true;
+//           }
+//         }
+//       }
+//       for (const boolTag in cl_boolTags) {
+//         if (cl_boolTags[boolTag]) {
+//           if (!cl_memTags.hasOwnProperty(boolTag)) {
+//             cl_memTags[boolTag] = new Set();
+//           }
+//           cl_memTags[boolTag].add(
+//             JSON.stringify([node_id, tranGraph[node_id][key][0]])
+//           );
+//         }
+//       }
+//       findMatchState(tranGraph[node_id][key][0], cl_memTags, cl_boolTags);
+//     }
+//   }
+//   findMatchState(m4["start"], {}, {});
+//   return allTags;
+// }
+
+// Non recursive version
 function findMatchStateM4(m4) {
   var tranGraph = m4["tran"];
   var allTags = {};
@@ -604,35 +679,29 @@ function findMatchStateM4(m4) {
     num_outward[key] = Object.keys(tranGraph[key]).length;
     track_outward[key] = 0;
   }
+  // change if many accepted states
+  num_outward[m4["accepted"]] = 0;
+  track_outward[m4["accepted"]] = 0;
 
-  function findMatchState(node_id, memTags, boolTags) {
-    if (node_id == m4["accepted"]) {
-      for (const key in memTags) {
-        if (!(key in allTags)) {
-          allTags[key] = new Set();
-        }
-        for (const strTran of memTags[key]) {
-          allTags[key].add(strTran);
-        }
-      }
-      return;
-    }
+  var stack = [];
+  stack.push({ node_id: m4["start"], memTags: {}, boolTags: {} });
+
+  while (stack.length > 0) {
+    var { node_id, memTags, boolTags } = stack.pop();
+
     if (track_outward[node_id] == num_outward[node_id]) {
       for (const key in memTags) {
-        if (!(key in allTags)) {
+        if (!allTags.hasOwnProperty(key)) {
           allTags[key] = new Set();
         }
         for (const strTran of memTags[key]) {
           allTags[key].add(strTran);
         }
       }
-      return;
+      continue;
     }
 
     for (const key in tranGraph[node_id]) {
-      // if (tranGraph[node_id][key][0] == node_id) {
-      //   continue;
-      // }
       // if already visit that transition, skip it
       if (
         visited_tran.has(JSON.stringify([node_id, tranGraph[node_id][key][0]]))
@@ -661,7 +730,7 @@ function findMatchStateM4(m4) {
       }
       for (const boolTag in cl_boolTags) {
         if (cl_boolTags[boolTag]) {
-          if (!(boolTag in cl_memTags)) {
+          if (!cl_memTags.hasOwnProperty(boolTag)) {
             cl_memTags[boolTag] = new Set();
           }
           cl_memTags[boolTag].add(
@@ -669,27 +738,26 @@ function findMatchStateM4(m4) {
           );
         }
       }
-      findMatchState(tranGraph[node_id][key][0], cl_memTags, cl_boolTags);
-      // delete visited;
-      // console.log("curr visited: ", visited_tran);
-      // console.log(
-      //   "Supposed delete:: ",
-      //   JSON.stringify([node_id, tranGraph[node_id][key][0]])
-      // );
-      // visited_tran.delete(
-      //   JSON.stringify([node_id, tranGraph[node_id][key][0]])
-      // );
+      stack.push({
+        node_id: tranGraph[node_id][key][0],
+        memTags: cl_memTags,
+        boolTags: cl_boolTags,
+      });
     }
   }
-  findMatchState(m4["start"], {}, {});
+
   return allTags;
 }
+
 function regexSubmatch(text, m3, m4) {
   var q3_rev_mem = [m3["start_state"]];
   var node = m3["start_state"];
   // run through m3
   for (let i = text.length - 1; i >= 0; i--) {
-    if (node in m3["trans"] && text[i] in m3["trans"][node]) {
+    if (
+      m3["trans"].hasOwnProperty(node) &&
+      m3["trans"][node].hasOwnProperty(text[i])
+    ) {
       node = m3["trans"][node][text[i]];
       q3_rev_mem.push(node);
     } else {
@@ -713,7 +781,7 @@ function regexSubmatch(text, m3, m4) {
   // console.log("subbbb ", submatch);
   tag_result = {};
   for (const key in submatch) {
-    if (!(key.split(",")[1] in tag_result)) {
+    if (!tag_result.hasOwnProperty(key.split(",")[1])) {
       tag_result[key.split(",")[1]] = [submatch[key]];
     } else {
       tag_result[key.split(",")[1]].push(submatch[key]);
@@ -728,7 +796,10 @@ function regexSubmatchFromState(text, m3, m4) {
   var node = m3["start_state"];
   // run through m3
   for (let i = text.length - 1; i >= 0; i--) {
-    if (node in m3["trans"] && text[i] in m3["trans"][node]) {
+    if (
+      m3["trans"].hasOwnProperty(node) &&
+      m3["trans"][node].hasOwnProperty(text[i])
+    ) {
       node = m3["trans"][node][text[i]];
       q3_rev_mem.push(node);
     } else {
