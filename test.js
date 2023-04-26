@@ -56,10 +56,10 @@ const text = fs.readFileSync("./test.txt").toString();
 //   [34, 240],
 // ];
 // const regex = `DKI: ((v|a|d); )+bh`;
-const regex = "DKI: ([vad\\+]; )+bh";
+const regex = "DKI: ([vad]; )+bh";
 const submatches = [
-  [6, 15],
-  [20, 29],
+  [6, 12],
+  [17, 23],
 ];
 gen.readSubmatch(regex, submatches);
 gen.finalRegexExtractRegister(regex, submatches, text);
