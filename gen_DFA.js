@@ -99,6 +99,48 @@ function simplifyRegex(str) {
 
   return addPipeInsideBrackets(combined_nosep);
 }
+function simplifyPlus(regex) {
+  var stack = [];
+
+  var numStack = 0;
+  var index_para = {};
+  i = 0;
+  while (i < regex.length) {
+    // console.log("char: ", i, " :  ", regex[i]);
+    // console.log("stack: ", stack);
+    if (regex[i] == "\\") {
+      stack.push(regex[i]);
+      stack.push(regex[i + 1]);
+      i += 2;
+      continue;
+    }
+    if (regex[i] == "(") {
+      numStack += 1;
+      index_para[numStack] = stack.length;
+    }
+    if (regex[i] == ")") {
+      numStack -= 1;
+    }
+    if (regex[i] == "+") {
+      popGroup = "";
+      var j = i - 1;
+      // consolidate from each alphabet to one string
+      while (j >= index_para[numStack + 1]) {
+        popGroup = stack.pop() + popGroup;
+        j -= 1;
+      }
+      popGroup = popGroup + popGroup + "*";
+      // console.log("curr Stack: ", stack);
+      // console.log("popGroup ", popGroup);
+      stack.push(popGroup);
+      i += 1;
+      continue;
+    }
+    stack.push(regex[i]);
+    i += 1;
+  }
+  return stack.join("");
+}
 function toNature(col) {
   var i,
     j,
@@ -241,4 +283,4 @@ function findSubstrings(simp_graph, text) {
   return [substrings, indexes];
 }
 
-module.exports = { simplifyGraph, findSubstrings, simplifyRegex };
+module.exports = { simplifyGraph, findSubstrings, simplifyRegex, simplifyPlus };

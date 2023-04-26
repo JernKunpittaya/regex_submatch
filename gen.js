@@ -26,7 +26,8 @@ const A2Z_nosep = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const r0to9_nosep = "0123456789";
 const email_address_regex = `([a-zA-Z0-9._%\\+-]+@[a-zA-Z0-9.-]+.[a-zA-Z0-9]+)`;
 
-// Assume submatch already ordered by order of (
+// Assume submatch already given by order of (
+// check if we should put submatch start "S" tag on that index or not
 function checkBeginGroup(index, submatches) {
   let result = [];
   for (let i = 0; i < submatches.length; i++) {
@@ -40,6 +41,7 @@ function checkBeginGroup(index, submatches) {
   return false;
 }
 // reverse order
+// check if we should put submatch end "E" tag on that index or not
 function checkEndGroup(index, submatches) {
   let result = [];
   for (let i = submatches.length - 1; i >= 0; i--) {
@@ -55,7 +57,7 @@ function checkEndGroup(index, submatches) {
 
 // M1 region
 
-// create M1
+// create M1 from regex
 // text is basically the naive regex
 // submatches = [[begin1, end1], [begin2, end2], ...]
 function regexToM1(text, submatches) {
@@ -213,34 +215,55 @@ function regexToM1(text, submatches) {
     }
 
     return [count, end];
-  } // New: simplifyRegex
-  var ast = lexical.parseRegex(gen_dfa.simplifyRegex(text)),
+  } // New: simplifyRegex and simplify Plus
+  var ast = lexical.parseRegex(
+      gen_dfa.simplifyPlus(gen_dfa.simplifyRegex(text))
+    ),
     start = { type: "start", edges: [] },
     accept = { type: "accept", edges: [] };
+  console.log("simppy: ", gen_dfa.simplifyRegex(text));
+  console.log(
+    "Plus works: ",
+    gen_dfa.simplifyPlus(gen_dfa.simplifyRegex(text))
+  );
   if (typeof ast === "string") {
     return ast;
   }
   generateGraph(ast, start, accept, 0, submatches, [], []);
   return start;
 }
-
-function readM1(m1, mem = new Set()) {
-  if (mem.has(m1)) {
-    console.log("exist already", m1);
-    return;
-  } else {
-    mem.add(m1);
+// simplify M1 to readable format, not just node points to each other
+function simplifyM1(m1) {
+  function read_M1(m1, q1, trans, accepted) {
+    if (q1.has(m1.id)) {
+      // console.log("exist already, id: ", m1.id);
+      return;
+    } else {
+      q1.add(m1.id);
+    }
+    // var edges = m1.edges;
+    if (m1.type == "accept") {
+      accepted.push(m1.id);
+      return;
+    }
+    for (let i = 0; i < m1.edges.length; i++) {
+      // console.log("edge of ", m1.id, " : ", m1.edges[i][0]);
+      if (!trans.hasOwnProperty(m1.id)) {
+        trans[m1.id] = {};
+      }
+      trans[m1.id][m1.edges[i][0].toString()] = m1.edges[i][1].id.toString();
+      read_M1(m1.edges[i][1], q1, trans, accepted);
+    }
   }
-  console.log(m1);
-
-  for (let i = 0; i < m1.edges.length; i++) {
-    console.log("edge of ", m1.id, " : ", m1.edges[i][0]);
-    readM1(m1.edges[i][1], mem);
-  }
+  var q1 = new Set();
+  var trans = {};
+  var accepted = [];
+  read_M1(m1, q1, trans, accepted);
+  return { q1: q1, accepted: accepted, trans: trans };
 }
 
 // M2 Region
-
+// Find the states in M1 that have outgoing edge with alphabet, to use as states in M2
 function findQ2(m1, q2, mem = new Set()) {
   if (mem.has(m1)) {
     // console.log("exist already, id: ", m1.id);
@@ -265,6 +288,7 @@ function findQ2(m1, q2, mem = new Set()) {
     findQ2(m1.edges[i][1], q2, mem);
   }
 }
+// Check if pi(start,end) is defined or not
 function piOnM1(m1, start, end, visited = new Set()) {
   if (start == end) {
     return true;
@@ -285,6 +309,7 @@ function piOnM1(m1, start, end, visited = new Set()) {
   }
   return false;
 }
+// get all transition for M2
 function deltaQ2(m1, q2) {
   result = [];
   for (let i = 0; i < q2.length; i++) {
@@ -302,6 +327,7 @@ function deltaQ2(m1, q2) {
   }
   return result;
 }
+//Create M2 from M1
 function M1ToM2(m1) {
   "use strict";
   var q2 = [];
@@ -335,8 +361,27 @@ function M1ToM2(m1) {
   }
   return { q2: q2_m2, trans: transition };
 }
+// can also read original m1 before getting simplified by simplifyM1
+function readM2(m2, mem = new Set()) {
+  if (mem.has(m2)) {
+    console.log("exist already", m2);
+    return;
+  } else {
+    mem.add(m2);
+  }
+  console.log(m2);
 
-function M2ToM3(q2_m2, transition) {
+  for (let i = 0; i < m2.edges.length; i++) {
+    console.log("edge of ", m2.id, " : ", m2.edges[i][0]);
+    readM2(m2.edges[i][1], mem);
+  }
+}
+
+// M3 region
+// create M3 from M2
+function M2ToM3(m2) {
+  var q2_m2 = m2["q2"];
+  var transition = m2["trans"];
   var q3 = [];
   var q3_m3 = new Set();
   var transition_3 = {};
@@ -412,35 +457,10 @@ function M2ToM3(q2_m2, transition) {
     trans: transition_3,
   };
 }
-function SimulateM1(m1) {
-  function simulate_M1(m1, q1, tran, accepted) {
-    if (q1.has(m1.id)) {
-      // console.log("exist already, id: ", m1.id);
-      return;
-    } else {
-      q1.add(m1.id);
-    }
-    // var edges = m1.edges;
-    if (m1.type == "accept") {
-      accepted.push(m1.id);
-      return;
-    }
-    for (let i = 0; i < m1.edges.length; i++) {
-      // console.log("edge of ", m1.id, " : ", m1.edges[i][0]);
-      if (!tran.hasOwnProperty(m1.id)) {
-        tran[m1.id] = {};
-      }
-      tran[m1.id][m1.edges[i][0].toString()] = m1.edges[i][1].id.toString();
-      simulate_M1(m1.edges[i][1], q1, tran, accepted);
-    }
-  }
-  var q1 = new Set();
-  var tran = {};
-  var accepted = [];
-  simulate_M1(m1, q1, tran, accepted);
-  return { q1: q1, accepted: accepted, tran: tran };
-}
-function findAllPaths(graph, start_id, end_id) {
+
+// M4 region
+// Find all paths without alphabet between start_id and end_id in m1
+function findAllPathsBetw(simplified_m1, start_id, end_id) {
   const visited = new Set();
   const paths = [];
 
@@ -452,10 +472,10 @@ function findAllPaths(graph, start_id, end_id) {
 
     visited.add(node_id);
 
-    for (const key in graph["tran"][node_id]) {
+    for (const key in simplified_m1["trans"][node_id]) {
       if (
         key.split(",").length > 1 &&
-        !visited.has(graph["tran"][node_id][key])
+        !visited.has(simplified_m1["trans"][node_id][key])
       ) {
         // console.log(
         //   "from ",
@@ -463,13 +483,13 @@ function findAllPaths(graph, start_id, end_id) {
         //   " with ",
         //   key,
         //   " to ",
-        //   graph["tran"][node_id][key]
+        //   simplified_m1["trans"][node_id][key]
         // );
-        // console.log("one here: ", [...path, graph["tran"][node_id][key]]);
+        // console.log("one here: ", [...path, simplified_m1["trans"][node_id][key]]);
         // console.log("second here ", [...tran, key]);
         dfs(
-          graph["tran"][node_id][key],
-          [...path, graph["tran"][node_id][key]],
+          simplified_m1["trans"][node_id][key],
+          [...path, simplified_m1["trans"][node_id][key]],
           [...tran, key]
         );
       }
@@ -482,6 +502,7 @@ function findAllPaths(graph, start_id, end_id) {
 
   return paths;
 }
+// compare priority of transition
 function tranMoreThan(tran1, tran2) {
   const num = () => (tran1.length < tran2.length ? tran1.length : tran2.length);
   for (let i = 0; i < num; i++) {
@@ -504,7 +525,7 @@ function tranMoreThan(tran1, tran2) {
     return result;
   }
 }
-
+// get max index
 const maxIndex = (arr, comparator) => {
   let maxIndex = 0;
   for (let i = 1; i < arr.length; i++) {
@@ -514,6 +535,7 @@ const maxIndex = (arr, comparator) => {
   }
   return maxIndex;
 };
+// extract only tag from transition array
 function onlyTag(arr) {
   result = [];
   for (const ele of arr) {
@@ -523,18 +545,18 @@ function onlyTag(arr) {
   }
   return result;
 }
+// create m4
 function createM4(m1, m3) {
-  var simplified_m1 = SimulateM1(m1);
+  var simplified_m1 = simplifyM1(m1);
   var q4 = {};
-  var accepted = [];
   // q4 = {state: {b: next, a: next}, ...}
-  for (let key in simplified_m1["tran"]) {
-    for (let alp in simplified_m1["tran"][key]) {
+  for (let key in simplified_m1["trans"]) {
+    for (let alp in simplified_m1["trans"][key]) {
       if (alp.split(",").length == 1) {
         if (!q4.hasOwnProperty(key)) {
           q4[key] = {};
         }
-        q4[key][alp] = simplified_m1["tran"][key][alp];
+        q4[key][alp] = simplified_m1["trans"][key][alp];
       }
     }
   }
@@ -547,7 +569,7 @@ function createM4(m1, m3) {
       var trans = [];
       for (const key in q4[p]) {
         for (const state of states) {
-          var search = findAllPaths(simplified_m1, q4[p][key], state);
+          var search = findAllPathsBetw(simplified_m1, q4[p][key], state);
           if (search.length > 0) {
             for (const oneSearch of search) {
               paths.push(oneSearch["path"]);
@@ -564,7 +586,7 @@ function createM4(m1, m3) {
         var best_path = paths[maxInd];
         all_trans[p][subset] = [
           best_path[best_path.length - 1],
-          // put JSON.stringify for reading sake
+          // PRINT swap comments betw 2 lines below
           // JSON.stringify(onlyTag(trans[maxInd])),
           onlyTag(trans[maxInd]),
         ];
@@ -577,7 +599,7 @@ function createM4(m1, m3) {
     var paths = [];
     var trans = [];
     for (const state of states) {
-      var search = findAllPaths(simplified_m1, "0", state);
+      var search = findAllPathsBetw(simplified_m1, "0", state);
       if (search.length > 0) {
         for (const oneSearch of search) {
           paths.push(oneSearch["path"]);
@@ -590,7 +612,7 @@ function createM4(m1, m3) {
         var best_path = paths[maxInd];
         all_trans["start"][subset] = [
           best_path[best_path.length - 1],
-          // put JSON.stringify for reading sake
+          // PRINT swap comments betw 2 lines below
           // JSON.stringify(onlyTag(trans[maxInd])),
           onlyTag(trans[maxInd]),
         ];
@@ -602,22 +624,101 @@ function createM4(m1, m3) {
   for (const ele of simplified_m1["accepted"]) {
     q4_withAcc.push(ele.toString());
   }
-  // console.log("trannnn ", all_trans);
+  // PRINT uncomment below lines
+  // console.log("M4 transitions: ", all_trans);
+  // console.log("acce M4 ", simplified_m1["accepted"]);
   return {
     q4: q4_withAcc,
     start: "start",
+    // accepted: simplified_m1["accepted"].toString(),
     accepted: simplified_m1["accepted"].toString(),
-    tran: all_trans,
+    trans: all_trans,
   };
 }
 
-// show what state transition is included for revealing a subgroup match.
+// extract index range (not end inclusive) for each subgroup
+// text is the input text we're reading
+function regexSubmatchRegister(text, m3, m4) {
+  var q3_rev_mem = [m3["start_state"]];
+  var node = m3["start_state"];
+  // run through m3
+  for (let i = text.length - 1; i >= 0; i--) {
+    if (
+      m3["trans"].hasOwnProperty(node) &&
+      m3["trans"][node].hasOwnProperty(text[i])
+    ) {
+      node = m3["trans"][node][text[i]];
+      q3_rev_mem.push(node);
+    } else {
+      throw new Error("Text not accepted by regex");
+    }
+  }
+
+  // change later in circom
+  var submatch = {};
+  // run through m4
+  node = "start";
+  for (let i = 0; i <= text.length; i++) {
+    if (m4["trans"][node][q3_rev_mem[text.length - i]][1].length > 0) {
+      // console.log(i, " : ", m4["trans"][node][q3_rev_mem[text.length - i]][1]);
+      for (const tag of m4["trans"][node][q3_rev_mem[text.length - i]][1]) {
+        // console.log("tag: ", tag);
+        submatch[tag] = i;
+      }
+    }
+    node = m4["trans"][node][q3_rev_mem[text.length - i]][0];
+    // console.log("node", node);
+  }
+  // console.log("subbbb ", submatch);
+  tag_result = {};
+  for (const key in submatch) {
+    if (!tag_result.hasOwnProperty(key.split(",")[1])) {
+      tag_result[key.split(",")[1]] = [submatch[key]];
+    } else {
+      tag_result[key.split(",")[1]].push(submatch[key]);
+    }
+  }
+  // console.log("tag result ", tag_result);
+  return tag_result;
+}
+
+// Extract regex from register
+function finalRegexExtractRegister(regex, submatches, text) {
+  const simp_graph = gen_dfa.simplifyGraph(regex);
+  console.log("min_dfa num states: ", simp_graph["states"].length);
+  const M1 = regexToM1(regex, submatches);
+  const M1_simplified = simplifyM1(M1);
+  console.log("M1 num states: ", M1_simplified["q1"].size);
+  const M2_dict = M1ToM2(M1);
+  console.log("M2 num states: ", Object.keys(M2_dict["q2"]).length);
+  const M3_dict = M2ToM3(M2_dict);
+  console.log("M3 num states ", Object.keys(M3_dict["trans"]).length);
+  const M4_dict = createM4(M1, M3_dict);
+  console.log("M4 num state: ", Object.keys(M4_dict["trans"]).length);
+  // console.log("M4: ", M4_dict);
+  const matched_dfa = gen_dfa.findSubstrings(simp_graph, text);
+  // console.log("matched df ", matched_dfa);
+  //iterate tag
+  for (const subs of matched_dfa[1]) {
+    var matched = text.slice(subs[0], subs[1] + 1);
+    var tag_result = regexSubmatchRegister(matched, M3_dict, M4_dict);
+    console.log("taggyy: ", tag_result);
+    console.log("Matched: ", matched);
+    for (index in tag_result)
+      console.log(
+        "Group: ",
+        index,
+        " : ",
+        matched.slice(tag_result[index][0], tag_result[index][1])
+      );
+  }
+}
+// show what state transition is included for revealing a subgroup match in all M4
 // memTags {tag1: set("[from1, to1]","[from2, to2]"", ...), tag2: [...]}
 // memTag {tag1: }
 // boolTag{tag1: true, tag2: False}
-
 function findMatchStateM4(m4) {
-  var tranGraph = m4["tran"];
+  var tranGraph = m4["trans"];
   var allTags = {};
   var visited_tran = new Set();
   var num_outward = {};
@@ -696,7 +797,8 @@ function findMatchStateM4(m4) {
   return allTags;
 }
 
-function regexSubmatch(text, m3, m4) {
+// return all indexes that is included in a certain subgroup match.
+function regexSubmatchState(text, m3, m4) {
   var q3_rev_mem = [m3["start_state"]];
   var node = m3["start_state"];
   // run through m3
@@ -711,50 +813,10 @@ function regexSubmatch(text, m3, m4) {
       throw new Error("Text not accepted by regex");
     }
   }
-
-  // change later in circom
-  var submatch = {};
-  // run through m4
-  node = "start";
-  for (let i = 0; i <= text.length; i++) {
-    if (m4["tran"][node][q3_rev_mem[text.length - i]][1].length > 0) {
-      // console.log("i ", i);
-      for (const tag of m4["tran"][node][q3_rev_mem[text.length - i]][1]) {
-        submatch[tag] = i;
-      }
-    }
-    node = m4["tran"][node][q3_rev_mem[text.length - i]][0];
-  }
-  // console.log("subbbb ", submatch);
-  tag_result = {};
-  for (const key in submatch) {
-    if (!tag_result.hasOwnProperty(key.split(",")[1])) {
-      tag_result[key.split(",")[1]] = [submatch[key]];
-    } else {
-      tag_result[key.split(",")[1]].push(submatch[key]);
-    }
-  }
-  // console.log("tag result ", tag_result);
-  return tag_result;
-}
-
-function regexSubmatchFromState(text, m3, m4) {
-  var q3_rev_mem = [m3["start_state"]];
-  var node = m3["start_state"];
-  // run through m3
-  for (let i = text.length - 1; i >= 0; i--) {
-    if (
-      m3["trans"].hasOwnProperty(node) &&
-      m3["trans"][node].hasOwnProperty(text[i])
-    ) {
-      node = m3["trans"][node][text[i]];
-      q3_rev_mem.push(node);
-    } else {
-      throw new Error("Text not accepted by regex");
-    }
-  }
-
+  // console.log("q3 array: ", q3_rev_mem);
   var allTags = findMatchStateM4(m4);
+  console.log("num all tags", Object.keys(allTags));
+  // console.log(allTags);
   var submatch = {};
   // run through m4
   node = "start";
@@ -764,7 +826,7 @@ function regexSubmatchFromState(text, m3, m4) {
         allTags[tag].has(
           JSON.stringify([
             node,
-            m4["tran"][node][q3_rev_mem[text.length - i]][0],
+            m4["trans"][node][q3_rev_mem[text.length - i]][0],
           ])
         )
       ) {
@@ -774,23 +836,68 @@ function regexSubmatchFromState(text, m3, m4) {
         submatch[tag].add(i);
       }
     }
-    node = m4["tran"][node][q3_rev_mem[text.length - i]][0];
+    node = m4["trans"][node][q3_rev_mem[text.length - i]][0];
   }
 
   return submatch;
 }
 
+// Extract regex from specified state
+function finalRegexExtractState(regex, submatches, text) {
+  const simp_graph = gen_dfa.simplifyGraph(regex);
+  console.log("min_dfa num states: ", simp_graph["states"].length);
+  const M1 = regexToM1(regex, submatches);
+  const M1_simplified = simplifyM1(M1);
+  console.log("M1 num states: ", M1_simplified["q1"].size);
+  const M2_dict = M1ToM2(M1);
+  console.log("M2 num states: ", Object.keys(M2_dict["q2"]).length);
+  const M3_dict = M2ToM3(M2_dict);
+  console.log("M3 num states ", Object.keys(M3_dict["trans"]).length);
+  const M4_dict = createM4(M1, M3_dict);
+  console.log("M4 num state: ", Object.keys(M4_dict["trans"]).length);
+  const matched_dfa = gen_dfa.findSubstrings(simp_graph, text);
+  for (const subs of matched_dfa[1]) {
+    var matched = text.slice(subs[0], subs[1] + 1);
+    var tag_result = regexSubmatchState(matched, M3_dict, M4_dict);
+    var result = "";
+    console.log("taggg: ", tag_result);
+    // iterate tag
+    for (const index of tag_result["0"]) {
+      result += matched[index];
+    }
+    console.log("State extracted: ", result);
+  }
+}
+function readSubmatch(regex, submatches) {
+  regex = gen_dfa.simplifyPlus(gen_dfa.simplifyRegex(regex));
+  console.log("regex: ", regex);
+  console.log("len regex: ", regex.length);
+  const index_color = {};
+  const defaultColor = "\x1b[0m";
+  for (var i = 0; i < submatches.length; i++) {
+    // the actual index of left is leftmost, right is rightmost
+    const color = `\x1b[${(i % 7) + 31}m`;
+    index_color[submatches[i][0]] = color;
+    index_color[submatches[i][1]] = color;
+  }
+  const sortedIndex = Object.keys(index_color).sort((a, b) => {
+    return parseInt(a) - parseInt(b);
+  });
+  console.log("dict ", sortedIndex);
+  var result = "";
+  var prev = 0;
+  for (const index of sortedIndex) {
+    result += regex.slice(prev, parseInt(index)) + index_color[index];
+    result += regex[index] + defaultColor;
+    prev = parseInt(index) + 1;
+  }
+  result += regex.slice(prev);
+  console.log(result);
+}
+
 // function
 module.exports = {
-  checkBeginGroup,
-  checkEndGroup,
-  regexToM1,
-  readM1,
-  M1ToM2,
-  M2ToM3,
-  createM4,
-  SimulateM1,
-  regexSubmatch,
-  findMatchStateM4,
-  regexSubmatchFromState,
+  finalRegexExtractRegister,
+  finalRegexExtractState,
+  readSubmatch,
 };
