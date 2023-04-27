@@ -28,7 +28,7 @@ const a2f = "a|b|c|d|e|f";
 const A2Z = "A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z";
 const r0to9 = "0|1|2|3|4|5|6|7|8|9";
 const alphanum = `${a2z}|${A2Z}|${r0to9}`;
-const alphabet = `${a2z}|${A2Z}|0|1|2`;
+const alphabet = `${a2z}|${A2Z}|${r0to9}|-|\\/`;
 
 const key_chars = `(${a2z})`;
 // hypothesis: is key_chars in email only limit to these chars below?
@@ -50,30 +50,50 @@ const email_address_regex = `([a-zA-Z0-9._%\\+-]+@[a-zA-Z0-9.-]+.[a-zA-Z0-9]+)`;
 const email_wallet_text = fs.readFileSync("./email_wallet.txt").toString();
 const text = fs.readFileSync("./test.txt").toString();
 // const sig_regex = `\nDKIM-Signature: (${key_chars}=${catch_all_without_semicolon}+;( |\t|\n|\r|\x0b|\x0c)*)+ bh=${base_64}+;`;
-// const sig_regex = `\nDKIM-Signature: (${succ_key_chars}=${catch_all_without_semicolon}+;( |\t|\n|\r|\x0b|\x0c)*)+ bh`;
+// const sig_regex = `\nDKIM-Signature: (${succ_key_chars}=(${catch_all_without_semicolon}+);( |\t|\n|\r|\x0b|\x0c)*)+ bh`;
 // const submatches = [
 //   [18, 32],
-//   [34, 240],
+//   [34, 243],
 // ];
-const regex = `DKI: (((v|a|d)+); )+bh`;
-// with ((v|a|d)*)
+
+// const sig_regex = `\nDKIM-Signature: (${succ_key_chars}=((${alphabet})+);( |\t|\n|\r|\x0b|\x0c)*)+ bh`;
+// const submatches = [
+//   [18, 32],
+//   [34, 166],
+// ];
+
+// const regex = `DKI: (((v|a|d)*); )+bh`;
 // const submatches = [
 //   [6, 15],
 //   [20, 29],
 // ];
-const submatches = [
-  [6, 15],
-  [27, 43],
-];
-// const regex = `DKI: ((v|a|d)+); bh`;
-// const submatches = [[5, 14]];
-// const regex = "DKI: ([vad]=[123]+; )+bh";
+// const regex = `DKI: (((v|a|d)+); )+bh`;
+// const submatches = [[6, 15]];
 // const submatches = [
-//   [6, 12],
-//   [14, 20],
-//   [21, 27],
-//   // [21, 27],
+//   [
+//     [6, 22],
+//     [27, 43],
+//   ],
 // ];
-// gen.readSubmatch(regex, submatches);
+
+const regex = "DKI: (([vad]=([123]+); )+)bh";
+const submatches = [
+  [5, 29],
+  [7, 13],
+  [15, 24],
+];
+// const regex = "DKI: (([12\\/]+); )+)bh";
+// const submatches = [[6, 16]];
+// const regex = "abcdefghij";
+// const submatches = [
+//   [
+//     [1, 3],
+//     [7, 8],
+//   ],
+// ];
+// const text = "asdabcdefghijasdv";
+gen.readSubmatch(regex, submatches);
 gen.finalRegexExtractRegister(regex, submatches, text);
 // gen.finalRegexExtractState(sig_regex, submatches, email_wallet_text);
+// gen.readSubmatch(sig_regex, submatches);
+// gen.finalRegexExtractRegister(sig_regex, submatches, email_wallet_text);

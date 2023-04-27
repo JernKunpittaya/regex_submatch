@@ -134,8 +134,8 @@ function simplifyPlus(regex, submatches) {
         popGroup = stack[j] + popGroup;
         j -= 1;
       }
-      console.log("len pop: ", popGroup.length);
-      console.log("curr i: ", i);
+      // console.log("len pop: ", popGroup.length);
+      // console.log("curr i: ", i);
       // console.log("pop len: ", popGroup.length);
       // console.log("i regex: ", i);
       for (const key in new_submatches) {
@@ -159,7 +159,7 @@ function simplifyPlus(regex, submatches) {
         }
         // if submatch end is affected  by enlarging this group
         else if (key.split(",")[1] > i) {
-          console.log("b2: ", submatches);
+          // console.log("b2: ", submatches);
           for (var k = 0; k < len_before; k++) {
             if (key.split(",")[0] > i) {
               new_submatches[key][k][0] += popGroup.length;
