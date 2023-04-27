@@ -99,15 +99,20 @@ function simplifyRegex(str) {
 
   return addPipeInsideBrackets(combined_nosep);
 }
-function simplifyPlus(regex) {
+function simplifyPlus(regex, submatches) {
   var stack = [];
-
+  var new_submatches = {};
+  // console.log("gen dfa: ", submatches);
+  for (const submatch of submatches) {
+    // console.log("subby: ", submatch);
+    new_submatches[submatch] = [submatch];
+  }
+  // console.log("new subm: ", new_submatches);
   var numStack = 0;
   var index_para = {};
   i = 0;
   while (i < regex.length) {
     // console.log("char: ", i, " :  ", regex[i]);
-    // console.log("stack: ", stack);
     if (regex[i] == "\\") {
       stack.push(regex[i]);
       stack.push(regex[i + 1]);
@@ -126,20 +131,44 @@ function simplifyPlus(regex) {
       var j = i - 1;
       // consolidate from each alphabet to one string
       while (j >= index_para[numStack + 1]) {
-        popGroup = stack.pop() + popGroup;
+        // popGroup = stack.pop() + popGroup;
+        popGroup = stack[j] + popGroup;
         j -= 1;
       }
-      popGroup = popGroup + popGroup + "*";
+      // console.log("pop len: ", popGroup.length);
+      // console.log("i regex: ", i);
+      for (const key in new_submatches) {
+        // console.log("key sp: ", key.split(",")[1]);
+        // console.log("border: ", index_para[numStack + 1]);
+        if (key.split(",")[1] > index_para[numStack + 1]) {
+          var len_before = new_submatches[key].length;
+          // console.log("bef: ", new_submatches);
+          for (var k = 0; k < len_before; k++) {
+            new_submatches[key].push([
+              new_submatches[key][k][0] + popGroup.length,
+              new_submatches[key][k][1] + popGroup.length,
+            ]);
+          }
+          // console.log("aff: ", new_submatches);
+        }
+      }
+      popGroup = popGroup + "*";
       // console.log("curr Stack: ", stack);
       // console.log("popGroup ", popGroup);
       stack.push(popGroup);
+      // console.log("stack after: ", stack);
       i += 1;
       continue;
     }
     stack.push(regex[i]);
     i += 1;
   }
-  return stack.join("");
+
+  var final_submatches = [];
+  for (const submatch of submatches) {
+    final_submatches.push(new_submatches[submatch[0] + "," + submatch[1]]);
+  }
+  return { regex: stack.join(""), submatches: final_submatches };
 }
 function toNature(col) {
   var i,

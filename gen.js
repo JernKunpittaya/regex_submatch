@@ -3,6 +3,7 @@ const gen_dfa = require("./gen_DFA");
 const path = require("path");
 const regexpTree = require("regexp-tree");
 const assert = require("assert");
+const { group } = require("console");
 
 const a2z = "a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z";
 const A2Z = "A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z";
@@ -31,9 +32,11 @@ const email_address_regex = `([a-zA-Z0-9._%\\+-]+@[a-zA-Z0-9.-]+.[a-zA-Z0-9]+)`;
 function checkBeginGroup(index, submatches) {
   let result = [];
   for (let i = 0; i < submatches.length; i++) {
+    // for (let j = 0; j < submatches[i]; j++) {
     if (submatches[i][0] == index) {
       result.push(i);
     }
+    // }
   }
   if (result.length != 0) {
     return result;
@@ -45,9 +48,11 @@ function checkBeginGroup(index, submatches) {
 function checkEndGroup(index, submatches) {
   let result = [];
   for (let i = submatches.length - 1; i >= 0; i--) {
+    // for (let j = 0; j < submatches[i]; j++) {
     if (submatches[i][1] == index) {
       result.push(i);
     }
+    // }
   }
   if (result.length != 0) {
     return result;
@@ -215,20 +220,25 @@ function regexToM1(text, submatches) {
     }
 
     return [count, end];
-  } // New: simplifyRegex and simplify Plus
+  }
+
+  // New: simplifyRegex and simplify Plus
+  // var after_plus = gen_dfa.simplifyPlus(
+  //   gen_dfa.simplifyRegex(text),
+  //   submatches
+  // );
   var ast = lexical.parseRegex(
-      gen_dfa.simplifyPlus(gen_dfa.simplifyRegex(text))
+      gen_dfa.simplifyPlus(gen_dfa.simplifyRegex(text), submatches)["regex"]
     ),
     start = { type: "start", edges: [] },
     accept = { type: "accept", edges: [] };
   console.log("simppy: ", gen_dfa.simplifyRegex(text));
-  console.log(
-    "Plus works: ",
-    gen_dfa.simplifyPlus(gen_dfa.simplifyRegex(text))
-  );
+  // console.log("Plus works: ", after_plus["regex"]);
   if (typeof ast === "string") {
     return ast;
   }
+  // use new submatches as after_plus["submatches"] instead
+  // console.log("ssss: ",after_plus["submatches"] )
   generateGraph(ast, start, accept, 0, submatches, [], []);
   return start;
 }
@@ -635,7 +645,7 @@ function createM4(m1, m3) {
     trans: all_trans,
   };
 }
-
+// Change from paper that cares only latest one, to be everyone to cover cases like "DKI: ([vad]; )+bh"
 // extract index range (not end inclusive) for each subgroup
 // text is the input text we're reading
 function regexSubmatchRegister(text, m3, m4) {
@@ -663,19 +673,26 @@ function regexSubmatchRegister(text, m3, m4) {
       // console.log(i, " : ", m4["trans"][node][q3_rev_mem[text.length - i]][1]);
       for (const tag of m4["trans"][node][q3_rev_mem[text.length - i]][1]) {
         // console.log("tag: ", tag);
-        submatch[tag] = i;
+        // New
+        if (!submatch.hasOwnProperty(tag)) {
+          submatch[tag] = [];
+        }
+
+        submatch[tag].push(i);
       }
     }
     node = m4["trans"][node][q3_rev_mem[text.length - i]][0];
     // console.log("node", node);
   }
-  // console.log("subbbb ", submatch);
+  console.log("subbbb ", submatch);
   tag_result = {};
-  for (const key in submatch) {
-    if (!tag_result.hasOwnProperty(key.split(",")[1])) {
-      tag_result[key.split(",")[1]] = [submatch[key]];
-    } else {
-      tag_result[key.split(",")[1]].push(submatch[key]);
+  console.log("num tag: ", Object.keys(submatch).length / 2);
+  for (var i = 0; i < Object.keys(submatch).length / 2; i++) {
+    const startTag = "S," + i;
+    const endTag = "E," + i;
+    tag_result[i] = [];
+    for (var j = 0; j < submatch[startTag].length; j++) {
+      tag_result[i].push([submatch[startTag][j], submatch[endTag][j]]);
     }
   }
   // console.log("tag result ", tag_result);
@@ -704,13 +721,16 @@ function finalRegexExtractRegister(regex, submatches, text) {
     var tag_result = regexSubmatchRegister(matched, M3_dict, M4_dict);
     console.log("taggyy: ", tag_result);
     console.log("Matched: ", matched);
-    for (index in tag_result)
-      console.log(
-        "Group: ",
-        index,
-        " : ",
-        matched.slice(tag_result[index][0], tag_result[index][1])
-      );
+    for (index in tag_result) {
+      for (var i = 0; i < tag_result[index].length; i++) {
+        console.log(
+          "Group: ",
+          index,
+          " : ",
+          matched.slice(tag_result[index][i][0], tag_result[index][i][1])
+        );
+      }
+    }
   }
 }
 // show what state transition is included for revealing a subgroup match in all M4
@@ -869,21 +889,31 @@ function finalRegexExtractState(regex, submatches, text) {
   }
 }
 function readSubmatch(regex, submatches) {
-  regex = gen_dfa.simplifyPlus(gen_dfa.simplifyRegex(regex));
+  regex = gen_dfa.simplifyRegex(regex);
+  console.log("og regex: ", regex);
+  var after_plus = gen_dfa.simplifyPlus(regex, submatches);
+  var final_regex = after_plus["regex"];
+  var final_submatches = after_plus["submatches"];
+  console.log("supbu: ", final_submatches);
+
   console.log("regex: ", regex);
   console.log("len regex: ", regex.length);
   const index_color = {};
+  const index_full = {};
+  const color_arr = [];
   const defaultColor = "\x1b[0m";
+
+  // color of original regex
   for (var i = 0; i < submatches.length; i++) {
     // the actual index of left is leftmost, right is rightmost
     const color = `\x1b[${(i % 7) + 31}m`;
     index_color[submatches[i][0]] = color;
     index_color[submatches[i][1]] = color;
+    color_arr.push(color);
   }
   const sortedIndex = Object.keys(index_color).sort((a, b) => {
     return parseInt(a) - parseInt(b);
   });
-  console.log("dict ", sortedIndex);
   var result = "";
   var prev = 0;
   for (const index of sortedIndex) {
@@ -892,7 +922,37 @@ function readSubmatch(regex, submatches) {
     prev = parseInt(index) + 1;
   }
   result += regex.slice(prev);
-  console.log(result);
+
+  // color of final regex
+  for (var i = 0; i < final_submatches.length; i++) {
+    // the actual index of left is leftmost, right is rightmost
+    const color = `\x1b[${(i % 7) + 31}m`;
+    for (var match of final_submatches[i]) {
+      index_full[match[0]] = color;
+      index_full[match[1]] = color;
+    }
+  }
+  const final_sortedIndex = Object.keys(index_full).sort((a, b) => {
+    return parseInt(a) - parseInt(b);
+  });
+  var final_result = "";
+  var final_prev = 0;
+  for (const index of final_sortedIndex) {
+    final_result +=
+      final_regex.slice(final_prev, parseInt(index)) + index_full[index];
+    final_result += final_regex[index] + defaultColor;
+    final_prev = parseInt(index) + 1;
+  }
+  final_result += final_regex.slice(final_prev);
+
+  // group color
+  var group_color = "Group: ";
+  for (var i = 0; i < color_arr.length; i++) {
+    group_color += color_arr[i] + i + defaultColor + ", ";
+  }
+  console.log(group_color.slice(0, group_color.length - 2));
+  console.log("input regex: ", result);
+  console.log("final regex: ", final_result);
 }
 
 // function

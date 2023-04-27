@@ -55,12 +55,14 @@ const text = fs.readFileSync("./test.txt").toString();
 //   [18, 32],
 //   [34, 240],
 // ];
-// const regex = `DKI: ((v|a|d); )+bh`;
-const regex = "DKI: ([vad]; )+bh";
+const regex = `DKI: ((v|a|d); )+bh`;
+// const regex = "DKI: ([vad]=[123]+; )+bh";
 const submatches = [
   [6, 12],
   [17, 23],
+  // [14, 20],
+  // [21, 27],
 ];
-gen.readSubmatch(regex, submatches);
+// gen.readSubmatch(regex, submatches);
 gen.finalRegexExtractRegister(regex, submatches, text);
 // gen.finalRegexExtractState(sig_regex, submatches, email_wallet_text);
