@@ -892,12 +892,13 @@ function readSubmatch(regex, submatches) {
   regex = gen_dfa.simplifyRegex(regex);
   console.log("og regex: ", regex);
   var after_plus = gen_dfa.simplifyPlus(regex, submatches);
+  console.log("after plus: ", after_plus);
   var final_regex = after_plus["regex"];
   var final_submatches = after_plus["submatches"];
-  console.log("supbu: ", final_submatches);
+  // console.log("supbu: ", final_submatches);
 
-  console.log("regex: ", regex);
-  console.log("len regex: ", regex.length);
+  // console.log("regex: ", regex);
+  // console.log("len regex: ", regex.length);
   const index_color = {};
   const index_full = {};
   const color_arr = [];
@@ -950,9 +951,9 @@ function readSubmatch(regex, submatches) {
   for (var i = 0; i < color_arr.length; i++) {
     group_color += color_arr[i] + i + defaultColor + ", ";
   }
-  console.log(group_color.slice(0, group_color.length - 2));
-  console.log("input regex: ", result);
-  console.log("final regex: ", final_result);
+  // console.log(group_color.slice(0, group_color.length - 2));
+  // console.log("input regex: ", result);
+  // console.log("final regex: ", final_result);
 }
 
 // function
