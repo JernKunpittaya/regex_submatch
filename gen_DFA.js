@@ -104,10 +104,9 @@ function simplifyPlus(regex, submatches) {
   var new_submatches = {};
   // console.log("gen dfa: ", submatches);
   for (const submatch of submatches) {
-    // console.log("subby: ", submatch);
-    new_submatches[submatch] = [submatch];
+    new_submatches[submatch] = [[...submatch]];
   }
-  // console.log("new subm: ", new_submatches);
+  // console.log("og submatch: ", new_submatches);
   var numStack = 0;
   var index_para = {};
   i = 0;
@@ -135,13 +134,20 @@ function simplifyPlus(regex, submatches) {
         popGroup = stack[j] + popGroup;
         j -= 1;
       }
+      console.log("len pop: ", popGroup.length);
+      console.log("curr i: ", i);
       // console.log("pop len: ", popGroup.length);
       // console.log("i regex: ", i);
       for (const key in new_submatches) {
         // console.log("key sp: ", key.split(",")[1]);
         // console.log("border: ", index_para[numStack + 1]);
-        if (key.split(",")[1] > index_para[numStack + 1]) {
-          var len_before = new_submatches[key].length;
+        // if submatch in that () that got extended by +
+        var len_before = new_submatches[key].length;
+
+        if (
+          key.split(",")[1] > index_para[numStack + 1] &&
+          key.split(",")[1] <= i - 1
+        ) {
           // console.log("bef: ", new_submatches);
           for (var k = 0; k < len_before; k++) {
             new_submatches[key].push([
@@ -149,8 +155,20 @@ function simplifyPlus(regex, submatches) {
               new_submatches[key][k][1] + popGroup.length,
             ]);
           }
-          // console.log("aff: ", new_submatches);
+          // console.log("aff1: ", submatches);
         }
+        // if submatch end is affected  by enlarging this group
+        else if (key.split(",")[1] > i) {
+          console.log("b2: ", submatches);
+          for (var k = 0; k < len_before; k++) {
+            if (key.split(",")[0] > i) {
+              new_submatches[key][k][0] += popGroup.length;
+            }
+            new_submatches[key][k][1] += popGroup.length;
+          }
+          // console.log("aff2: ", submatches);
+        }
+        // console.log("NEW SUB: ", new_submatches);
       }
       popGroup = popGroup + "*";
       // console.log("curr Stack: ", stack);
@@ -165,9 +183,12 @@ function simplifyPlus(regex, submatches) {
   }
 
   var final_submatches = [];
+  // console.log("b4: ", submatches);
+  // console.log("b5: ", new_submatches);
   for (const submatch of submatches) {
     final_submatches.push(new_submatches[submatch[0] + "," + submatch[1]]);
   }
+  // console.log("final sub: ", final_submatches);
   return { regex: stack.join(""), submatches: final_submatches };
 }
 function toNature(col) {
