@@ -1,8 +1,10 @@
 # regex_submatch
 
+Want to create this repo to unveil behind the scenes of regex matching stuff so we can use it to create zk circuit in the future.
 We create 2 automata m3, m4 to parse and extract submatches.
 
 We make it accept only sound group match e.g. (a*) not (a)*
+Thi is the generalized version of subgroup matching, but it's exponential size so will simplify it in next repo. The register version is done, but stop working on the state version --> go back to simplify DFA
 
 To write
 -why 2 automata

@@ -103,7 +103,5 @@ const submatches = [
 
 // gen.readSubmatch(regex, submatches);
 // gen.finalRegexExtractRegister(regex, submatches, text);
-// gen.finalRegexExtractState(sig_regex, submatches, email_wallet_text);
 gen.readSubmatch(sig_regex, submatches);
 gen.finalRegexExtractRegister(sig_regex, submatches, email_wallet_text);
-// gen.finalRegexExtractState(sig_regex, submatches, email_wallet_text);
