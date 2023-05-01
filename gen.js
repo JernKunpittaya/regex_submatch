@@ -34,7 +34,8 @@ function checkBeginGroup(index, submatches) {
   for (let i = 0; i < submatches.length; i++) {
     for (let j = 0; j < submatches[i].length; j++) {
       if (submatches[i][j][0] == index) {
-        result.push(i);
+        // result.push(i);
+        result.push(JSON.stringify([i, j]));
         break;
       }
     }
@@ -53,7 +54,8 @@ function checkEndGroup(index, submatches) {
     for (let j = 0; j < submatches[i].length; j++) {
       //
       if (submatches[i][j][1] == index) {
-        result.push(i);
+        // result.push(i);
+        result.push(JSON.stringify([i, j]));
         break;
       }
       //
@@ -83,6 +85,14 @@ function regexToM1(text, submatches) {
       endTag,
       realStart,
       interEnd;
+    // console.log("beginninggg");
+    // console.log("Node id ", node);
+    // console.log("start state b4: ", start);
+    // console.log("end state b4: ", end);
+    // console.log("count: ", count);
+    // console.log("submatch: ", submatches);
+    // console.log("memS: ", memS);
+    // console.log("memE: ", memE);
     if (!start.hasOwnProperty("id")) {
       start.id = count;
       count += 1;
@@ -97,15 +107,16 @@ function regexToM1(text, submatches) {
       temp = start;
       last = start;
       for (let i = 0; i < beginTag.length; i++) {
-        // WHY memS and memE
-        // if (!memS.includes(beginTag[i])) {
-        memS.push(beginTag[i]);
-        last = { type: "", edges: [] };
-        temp.edges.push([["S", beginTag[i]], last]);
-        last.id = count;
-        count += 1;
-        temp = last;
-        // }
+        // WHY memS and memE --> not repeat tag with group that overlaps in node.begin, node.end
+        if (!memS.includes(beginTag[i])) {
+          memS.push(beginTag[i]);
+          last = { type: "", edges: [] };
+          // temp.edges.push([["S", beginTag[i]], last]);
+          temp.edges.push([["S", JSON.parse(beginTag[i])[0]], last]);
+          last.id = count;
+          count += 1;
+          temp = last;
+        }
       }
       realStart = last;
       // console.log("real ", realStart);
@@ -117,9 +128,9 @@ function regexToM1(text, submatches) {
 
       for (let i = 0; i < endTag.length; i++) {
         // WHY memS and memE
-        // if (!memE.includes(endTag[i])) {
-        newTag.push(endTag[i]);
-        // }
+        if (!memE.includes(endTag[i])) {
+          newTag.push(endTag[i]);
+        }
       }
       if (newTag.length >= 1) {
         interEnd = { type: "", edges: [] };
@@ -128,11 +139,13 @@ function regexToM1(text, submatches) {
         for (let i = 0; i < newTag.length - 1; i++) {
           memE.push(newTag[i]);
           last = { type: "", edges: [] };
-          temp.edges.push([["E", newTag[i]], last]);
+          // temp.edges.push([["E", newTag[i]], last]);
+          temp.edges.push([["E", JSON.parse(newTag[i])[0]], last]);
           temp = last;
         }
         memE.push(newTag[newTag.length - 1]);
-        last.edges.push([["E", newTag[newTag.length - 1]], end]);
+        // last.edges.push([["E", newTag[newTag.length - 1]], end]);
+        last.edges.push([["E", JSON.parse(newTag[newTag.length - 1])[0]], end]);
       } else {
         interEnd = end;
       }
@@ -226,7 +239,8 @@ function regexToM1(text, submatches) {
       end.id = count;
       count += 1;
     }
-
+    // console.log("start state after: ", start);
+    // console.log("end state after: ", end);
     return [count, end];
   }
 
@@ -246,9 +260,14 @@ function regexToM1(text, submatches) {
   if (typeof ast === "string") {
     return ast;
   }
+  // console.log("ast: ", ast);
+  // console.log("part 5: ", ast["parts"][5]);
+  // console.log("part 5 OR: ", ast["parts"][5]["parts"][0]);
+  // console.log("part 5 STAR: ", ast["parts"][5]["parts"][1]);
+  // console.log("part 5 OR in STAR: ", ast["parts"][5]["parts"][1]["sub"]);
   // use new submatches as after_plus["submatches"] instead
   // console.log("ssss: ",after_plus["submatches"] )
-  generateGraph(ast, start, accept, 0, after_plus["submatches"], [], []);
+  generateGraph(ast, start, accept, 0, after_plus["final_submatches"], [], []);
   return start;
 }
 // simplify M1 to readable format, not just node points to each other
@@ -681,7 +700,7 @@ function regexSubmatchRegister(text, m3, m4) {
     if (m4["trans"][node][q3_rev_mem[text.length - i]][1].length > 0) {
       // console.log(i, " : ", m4["trans"][node][q3_rev_mem[text.length - i]][1]);
       for (const tag of m4["trans"][node][q3_rev_mem[text.length - i]][1]) {
-        console.log("tag: ", tag);
+        // console.log("tag: ", tag);
         // New
         if (!submatch.hasOwnProperty(tag)) {
           submatch[tag] = [];
@@ -693,9 +712,9 @@ function regexSubmatchRegister(text, m3, m4) {
     node = m4["trans"][node][q3_rev_mem[text.length - i]][0];
     // console.log("node", node);
   }
-  console.log("subbbb ", submatch);
+  // console.log("subbbb ", submatch);
   tag_result = {};
-  console.log("num tag: ", Object.keys(submatch).length / 2);
+  // console.log("num tag: ", Object.keys(submatch).length / 2);
   for (var i = 0; i < Object.keys(submatch).length / 2; i++) {
     const startTag = "S," + i;
     const endTag = "E," + i;
@@ -711,6 +730,7 @@ function regexSubmatchRegister(text, m3, m4) {
 // Extract regex from register
 function finalRegexExtractRegister(regex, submatches, text) {
   const simp_graph = gen_dfa.simplifyGraph(regex);
+  // console.log("simp graph DFA: ", simp_graph);
   console.log("min_dfa num states: ", simp_graph["states"].length);
   // console.log("input regex: ", regex);
   const M1 = regexToM1(regex, submatches);
@@ -725,13 +745,13 @@ function finalRegexExtractRegister(regex, submatches, text) {
   console.log("M4 num state: ", Object.keys(M4_dict["trans"]).length);
   // console.log("M4: ", M4_dict);
   const matched_dfa = gen_dfa.findSubstrings(simp_graph, text);
-  console.log("matched df ", matched_dfa);
+  // console.log("matched df ", matched_dfa);
   //iterate tag
   for (const subs of matched_dfa[1]) {
     var matched = text.slice(subs[0], subs[1] + 1);
     var tag_result = regexSubmatchRegister(matched, M3_dict, M4_dict);
-    console.log("All tags: ", tag_result);
-    console.log("Matched: ", matched);
+    // console.log("All tags: ", tag_result);
+    // console.log("Matched: ", matched);
     for (index in tag_result) {
       for (var i = 0; i < tag_result[index].length; i++) {
         console.log(
@@ -904,8 +924,10 @@ function readSubmatch(regex, submatches) {
   // console.log("og regex: ", regex);
   var after_plus = gen_dfa.simplifyPlus(regex, submatches);
   // console.log("after plus: ", after_plus);
-  var final_regex = after_plus["regex"];
-  var final_submatches = after_plus["submatches"];
+  // var final_regex = after_plus["regex"];
+  // var final_submatches = after_plus["submatches"];
+  var final_regex = after_plus["regex_show"];
+  var final_submatches = after_plus["final_submatches"];
   // console.log("og submatch: ", submatches);
   // console.log("after submatch: ", final_submatches);
 

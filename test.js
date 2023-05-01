@@ -28,7 +28,7 @@ const a2f = "a|b|c|d|e|f";
 const A2Z = "A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z";
 const r0to9 = "0|1|2|3|4|5|6|7|8|9";
 const alphanum = `${a2z}|${A2Z}|${r0to9}`;
-const alphabet = `${a2z}|${A2Z}|${r0to9}|-|\\/`;
+// const alphabet = `${a2z}|${A2Z}|${r0to9}|-|\\/`;
 
 const key_chars = `(${a2z})`;
 // hypothesis: is key_chars in email only limit to these chars below?
@@ -76,24 +76,34 @@ const text = fs.readFileSync("./test.txt").toString();
 //   ],
 // ];
 
-const regex = "DKI: (([vad]=([123]+); )+)bh";
-const submatches = [
-  [5, 29],
-  [7, 13],
-  [15, 24],
-];
-// const regex = "DKI: (([12\\/]+); )+)bh";
-// const submatches = [[6, 16]];
-// const regex = "abcdefghij";
+// const regex = "DKI: (([vad]=([12\\/]+); )+)bh";
 // const submatches = [
-//   [
-//     [1, 3],
-//     [7, 8],
-//   ],
+//   [5, 30],
+//   [7, 13],
+//   [15, 25],
 // ];
-// const text = "asdabcdefghijasdv";
-gen.readSubmatch(regex, submatches);
-gen.finalRegexExtractRegister(regex, submatches, text);
+
+// const regex = "DKI: (([vad]=([12,]+); )+)bh";
+// const submatches = [
+//   [5, 29],
+//   [7, 13],
+//   [15, 24],
+// ];
+// const regex = "DKI: (([vad,]+); )+bh";
+// const submatches = [[6, 17]];
+
+const extension =
+  "-|\\/|.|\"|#|$|%|&|'|\\(|\\)|\\*|\\+|:|<|=|>|\\?|@|\\[|]|^|_|`|{|\\||}|~| |\t|\n|\r|\x0b|\x0c";
+const alphabet = `${a2z}|${A2Z}|${r0to9}|${extension}`;
+const sig_regex = `\nDKIM-Signature: (${succ_key_chars}=((${alphabet})+);( |\t|\n|\r|\x0b|\x0c)*)+ bh`;
+const submatches = [
+  [18, 32],
+  [34, 236],
+];
+
+// gen.readSubmatch(regex, submatches);
+// gen.finalRegexExtractRegister(regex, submatches, text);
 // gen.finalRegexExtractState(sig_regex, submatches, email_wallet_text);
-// gen.readSubmatch(sig_regex, submatches);
-// gen.finalRegexExtractRegister(sig_regex, submatches, email_wallet_text);
+gen.readSubmatch(sig_regex, submatches);
+gen.finalRegexExtractRegister(sig_regex, submatches, email_wallet_text);
+// gen.finalRegexExtractState(sig_regex, submatches, email_wallet_text);

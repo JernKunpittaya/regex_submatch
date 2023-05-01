@@ -158,6 +158,7 @@ function parseRegex(text) {
 
   while (i < text.length) {
     if (text[i] == "\\") {
+      // Not necessary, \n stuffs are already interpreted as one thing
       // change here to make fancy: \n, \t, \r, \x0b, \x0c
       // if (text[i + 1] == "n") {
       //   new_text.push(["\n"]);

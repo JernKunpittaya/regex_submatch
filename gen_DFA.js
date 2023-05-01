@@ -100,12 +100,14 @@ function simplifyRegex(str) {
   return addPipeInsideBrackets(combined_nosep);
 }
 function simplifyPlus(regex, submatches) {
+  // console.log("og submatches: ", submatches);
   var stack = [];
   var new_submatches = {};
   // console.log("gen dfa: ", submatches);
   for (const submatch of submatches) {
     new_submatches[submatch] = [[...submatch]];
   }
+
   // console.log("og submatch: ", new_submatches);
   var numStack = 0;
   var index_para = {};
@@ -127,13 +129,14 @@ function simplifyPlus(regex, submatches) {
     }
     if (regex[i] == "+") {
       popGroup = "";
-      var j = i - 1;
+      var j = stack.length - 1;
       // consolidate from each alphabet to one string
       while (j >= index_para[numStack + 1]) {
         // popGroup = stack.pop() + popGroup;
         popGroup = stack[j] + popGroup;
         j -= 1;
       }
+
       // console.log("len pop: ", popGroup.length);
       // console.log("curr i: ", i);
       // console.log("pop len: ", popGroup.length);
@@ -170,6 +173,7 @@ function simplifyPlus(regex, submatches) {
         }
         // console.log("NEW SUB: ", new_submatches);
       }
+
       popGroup = popGroup + "*";
       // console.log("curr Stack: ", stack);
       // console.log("popGroup ", popGroup);
@@ -182,15 +186,64 @@ function simplifyPlus(regex, submatches) {
     i += 1;
   }
 
-  var final_submatches = [];
+  var almost_submatches = [];
   // console.log("b4: ", submatches);
   // console.log("b5: ", new_submatches);
   for (const submatch of submatches) {
-    final_submatches.push(new_submatches[submatch[0] + "," + submatch[1]]);
+    almost_submatches.push(new_submatches[submatch[0] + "," + submatch[1]]);
   }
+  var regex_for_parse = stack.join("");
+  var regex_for_show = "";
+  var escape_pos = [];
+  for (var i = 0; i < regex_for_parse.length; i++) {
+    if (regex_for_parse[i] != "\\") {
+      regex_for_show += regex_for_parse[i];
+    } else {
+      escape_pos.push(i);
+    }
+  }
+  escape_pos.sort((a, b) => a - b);
+  var final_submatches = [];
+  for (const group of almost_submatches) {
+    var group_arr = [];
+    for (const index of group) {
+      group_arr.push([
+        index[0] - findIndex(escape_pos, index[0]),
+        index[1] - findIndex(escape_pos, index[1]),
+      ]);
+    }
+    final_submatches.push(group_arr);
+  }
+  // console.log("almost: ", almost_submatches);
   // console.log("final sub: ", final_submatches);
-  return { regex: stack.join(""), submatches: final_submatches };
+  return {
+    regex: regex_for_parse,
+    submatches: almost_submatches,
+    regex_show: regex_for_show,
+    final_submatches: final_submatches,
+  };
 }
+
+function findIndex(arr, num) {
+  let left = 0;
+  let right = arr.length - 1;
+  let mid = 0;
+
+  while (left <= right) {
+    mid = Math.floor((left + right) / 2);
+
+    if (arr[mid] < num) {
+      left = mid + 1;
+    } else if (arr[mid] > num) {
+      right = mid - 1;
+    } else {
+      return mid;
+    }
+  }
+
+  return arr[mid] < num ? mid + 1 : mid;
+}
+
 function toNature(col) {
   var i,
     j,

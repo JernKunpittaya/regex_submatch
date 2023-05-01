@@ -36,8 +36,9 @@ Authentication-Results: mx.google.com;
        spf=pass (google.com: domain of jernjern356@gmail.com designates 209.85.220.41 as permitted sender) smtp.mailfrom=jernjern356@gmail.com;
        dmarc=pass (p=NONE sp=QUARANTINE dis=NONE) header.from=gmail.com
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
-        d=gmailcom; s=20210112; t=1680695766;
-        h=to;
+        d=gmail.com; s=20210112; t=1680695766;
+        h=to:subject:message-id:date:from:mime-version:from:to:cc:subject
+         :date:message-id:reply-to;
         bh=xUqTs2T2FPGCOB52rXuywLJoOoikRcDVuNz4ueT0GA4=;
         b=QoK41g+m91nYJ8XHLrHcbdxISGgRcd7Y0yBIsRIXgFf5HdHmq8h2J+uIW7eAsvcVVE
          wJRWwSQu1FARtZrOtngOaghtOr/7Rw94gkD8zFIx1PWo6ANrfEorX9zWNbrHAeiihc6X
