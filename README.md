@@ -1,5 +1,7 @@
 # regex_submatch
 
+A repo of backend algorithm to extract regex matching in the most general and granular case. Hence resulting in exponential blowup. To make it linear to work with zk, we simplify the generalization of subgroup match allowance to not allow reveal only "a" from (a|b) [not revealing anything if it matches b, which this repo allows us to do this] but to reveal "a" or "b" from a|b. [Hence reveal anyway either it matches a or b]. See more at https://github.com/JernKunpittaya/full_zk_regex
+
 Want to create this repo to unveil behind the scenes of regex matching stuff so we can use it to create zk circuit in the future.
 We create 2 automata m3, m4 to parse and extract submatches.
 
